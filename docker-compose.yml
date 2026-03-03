@@ -1,0 +1,15 @@
+services:
+  app:
+    build: .
+    image: dmtcdrk-pipeline:latest
+    volumes:
+      - .:/data
+    working_dir: /data
+    environment:
+      - INPUT_FILE=${INPUT_FILE:-input.txt}
+      - OUTPUT_FILE=${OUTPUT_FILE:-output_optimized.txt}
+      - HASH_FILE=${HASH_FILE:-.input_hash}
+      - CONCURRENCY_LIMIT=${CONCURRENCY_LIMIT:-1}
+      - DELAY=${DELAY:-0.9}
+      - GIT_PUSH_TOKEN=${GIT_PUSH_TOKEN}
+    command: ["./run.sh"]
