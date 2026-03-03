@@ -1,20 +1,18 @@
-# Pipeline: resolve domains -> IP/CIDR, optimize, output to file.
-# Use with: docker compose run --rm app ./run.sh
-FROM python:3.11-slim
-LABEL org.opencontainers.image.description="DMTCDRK pipeline: resolve domains to IP/CIDR and optimize list"
+# DMTCDRK — Debian 12 compatible
+FROM python:3.11-slim-bookworm
 
-RUN pip install --no-cache-dir dnspython
+RUN apt-get update && apt-get install -y --no-install-recommends git \
+  && rm -rf /var/lib/apt/lists/* \
+  && pip install --no-cache-dir dnspython
 
-# Run as non-root user
 RUN adduser --disabled-password --gecos "" pipeline
 
 WORKDIR /data
-COPY requirements.txt pipeline.py script.py ip_utils.py run.sh sync.sh scheduler.sh ./
-RUN chmod +x run.sh sync.sh scheduler.sh && chown -R pipeline:pipeline /data
+COPY requirements.txt pipeline.py script.py ip_utils.py \
+  run.sh sync.sh scheduler.sh verify_inner.sh verify_input.txt ./
+RUN chmod +x run.sh sync.sh scheduler.sh verify_inner.sh \
+  && chown -R pipeline:pipeline /data
 
 USER pipeline
-
-HEALTHCHECK --interval=60s --timeout=5s --start-period=0s --retries=1 \
-  CMD python3 -c "import ip_utils; print('ok')" || exit 1
 
 CMD ["./run.sh"]

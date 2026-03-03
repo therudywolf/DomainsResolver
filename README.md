@@ -20,74 +20,29 @@
 
 ---
 
-## Стартап-гайд (с нуля)
-
-### 1. Клонируй / скопируй проект
+## Стартап (Debian 12, только Docker)
 
 ```bash
 git clone https://github.com/rudywolf/DMTCDRK.git
 cd DMTCDRK
+chmod +x start.sh verify.sh
+./start.sh
 ```
 
-### 2. Файл со списком
+`start.sh` сам создаёт `.env` и `input.txt` из примеров, проверяет DNS и push, запускает daemon. Заполни `GIT_PUSH_TOKEN` в `.env` и добавь домены в `input.txt`.
 
-Создай `input.txt` в корне — по одной строке: домен, `*.domain.com`, IP или CIDR. Пустые строки и строки с `#` игнорируются.
-
-```bash
-echo "example.com" >> input.txt
-echo "192.168.1.0/24" >> input.txt
-```
-
-### 3. Окружение
-
-```bash
-cp .env.example .env
-```
-
-Открой `.env`. Минимум — для автоматического пуша в Git нужен токен:
-
-- Зайди на https://github.com/settings/tokens
-- **Generate new token (classic)**, права — `repo`
-- Скопируй токен и вставь в `.env`:
-
-```bash
-GIT_PUSH_TOKEN=ghp_твой_токен_сюда
-```
-
-Остальное в `.env` можно не трогать (дефолты ок).
-
-### 4. Первый запуск — проверка
-
-```bash
-./verify.sh
-```
-
-Резолвит несколько тестовых доменов (example.com, github.com, cloudflare.com) с отладкой (LOG_LEVEL=DEBUG), проверяет доступность git push (dry-run). Убедись, что всё работает перед `./run.sh` или `deploy.sh`.
-
-Работает только через Docker — Python на хосте не нужен.
-
-### 5. Запуск
-
-**Docker Compose — два режима:**
+### Команды Docker Compose
 
 | Команда | Режим |
 |---------|-------|
-| `docker compose run --rm app` | Один прогон |
+| `./start.sh` | Всё: подготовка + проверка + daemon |
+| `./verify.sh` | Только проверка DNS и push |
+| `docker compose --profile run run --rm run` | Один прогон (input.txt) |
 | `docker compose up -d daemon` | Фон (production) |
 
-Частота проверки — в `.env`: `SCHEDULE_INTERVAL_MINUTES=60` (каждый час) или `1440` (раз в день).
+Частота — в `.env`: `SCHEDULE_INTERVAL_MINUTES=60`.
 
-**Без Docker:**
-
-```bash
-pip install -r requirements.txt
-chmod +x run.sh sync.sh
-./run.sh
-```
-
-Первый прогон: резолв доменов, оптимизация, запись `output_optimized.txt` и `.input_hash`. Если что-то изменилось — `sync.sh` сделает commit и push (если задан `GIT_PUSH_TOKEN`).
-
-### 6. Регулярный запуск (cron или daemon)
+### Регулярный запуск (cron или daemon)
 
 Чтобы стая выходила раз в день без твоего участия:
 
@@ -98,18 +53,10 @@ crontab -e
 Добавь (подставь свой путь к проекту):
 
 ```cron
-0 3 * * * cd /path/to/DMTCDRK && docker compose run --rm app ./run.sh >> /var/log/dmtcdrk.log 2>&1
+0 3 * * * cd /path/to/DMTCDRK && docker compose --profile run run --rm run >> /var/log/dmtcdrk.log 2>&1
 ```
 
-Без Docker:
-
-```cron
-0 3 * * * cd /path/to/DMTCDRK && ./run.sh >> /var/log/dmtcdrk.log 2>&1
-```
-
-**Вариант A — Docker daemon (рекомендуется):** `docker compose up daemon` — работает в фоне, проверяет каждые `SCHEDULE_INTERVAL_MINUTES` минут. Подходит для 60–100K доменов (инкрементальный кэш).
-
-**Вариант B — cron:** Резолв по полному списку пойдёт только когда изменится `input.txt`; иначе скрипт просто выйдет без лишней нагрузки.
+**Daemon (рекомендуется):** `docker compose up -d daemon` — фон, проверка каждые `SCHEDULE_INTERVAL_MINUTES` минут. Подходит для 60–100K доменов.
 
 ---
 
@@ -125,7 +72,7 @@ RESOLVE_PER_RUN=5000
 CACHE_TTL_HOURS=24
 ```
 
-Запуск: `docker compose up daemon`. Каждый прогон обновляет до 5000 доменов; за 24 часа все 100K перепроверяются. Нагрузка распределена равномерно.
+Запуск: `./start.sh` или `docker compose up -d daemon`. Каждый прогон обновляет до 5000 доменов; за 24 часа все 100K перепроверяются.
 
 ---
 
@@ -206,6 +153,7 @@ pytest tests/ -v
 - `script.py` — отдельный консолидатор по директории (использует ip_utils).
 - `run.sh` — проверка хеша, запуск пайплайна, обновление `.input_hash`, вызов sync.
 - `scheduler.sh` — цикл для daemon: запуск `run.sh` каждые N минут.
-- `deploy.sh` — развёртывание на сервере: сборка + `docker compose up -d daemon`.
-- `verify.sh` — первый запуск: проверка DNS и push с отладкой.
+- `start.sh` — единая точка входа: подготовка + проверка + daemon.
+- `deploy.sh` — алиас для `start.sh`.
+- `verify.sh` — проверка DNS и push через Docker Compose.
 - `sync.sh` — git add/commit/push при изменении output/hash; откат origin после пуша.
