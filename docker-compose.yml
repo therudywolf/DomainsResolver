@@ -21,6 +21,8 @@ services:
       - LOG_LEVEL=DEBUG
       - FORCE_RUN=1
       - USE_DOMAIN_CACHE=0
+      - CONCURRENCY_LIMIT=1
+      - DELAY=1.0
     command: ["bash", "verify_inner.sh"]
 
   run:
@@ -35,6 +37,10 @@ services:
       - INPUT_FILE=${INPUT_FILE:-input.txt}
       - OUTPUT_FILE=${OUTPUT_FILE:-output_optimized.txt}
       - HASH_FILE=${HASH_FILE:-.input_hash}
+      - CONCURRENCY_LIMIT=${CONCURRENCY_LIMIT:-1}
+      - DELAY=${DELAY:-1.0}
+      - GIT_USER_NAME=${GIT_USER_NAME:-DMTCDRK}
+      - GIT_USER_EMAIL=${GIT_USER_EMAIL:-dmtcdrk@localhost}
     command: ["bash", "run.sh"]
 
   daemon:
@@ -49,5 +55,9 @@ services:
       - OUTPUT_FILE=${OUTPUT_FILE:-output_optimized.txt}
       - HASH_FILE=${HASH_FILE:-.input_hash}
       - USE_DOMAIN_CACHE=${USE_DOMAIN_CACHE:-1}
+      - CONCURRENCY_LIMIT=${CONCURRENCY_LIMIT:-1}
+      - DELAY=${DELAY:-1.0}
+      - GIT_USER_NAME=${GIT_USER_NAME:-DMTCDRK}
+      - GIT_USER_EMAIL=${GIT_USER_EMAIL:-dmtcdrk@localhost}
     command: ["bash", "scheduler.sh"]
     restart: unless-stopped

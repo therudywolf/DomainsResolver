@@ -9,11 +9,16 @@ HASH_FILE="${HASH_FILE:-.input_hash}"
 GIT_PUSH_RETRIES="${GIT_PUSH_RETRIES:-3}"
 GIT_PUSH_SLEEP="${GIT_PUSH_SLEEP:-5}"
 
+# Git config (нужно для commit в контейнере)
+git config user.name "${GIT_USER_NAME:-DMTCDRK}" 2>/dev/null || true
+git config user.email "${GIT_USER_EMAIL:-dmtcdrk@localhost}" 2>/dev/null || true
+
 if ! git status --porcelain "$OUTPUT_FILE" "$HASH_FILE" 2>/dev/null | grep -q .; then
-  echo "[SKIP] No changes to $OUTPUT_FILE or $HASH_FILE, nothing to push."
+  echo "[SYNC] Нет изменений в $OUTPUT_FILE или $HASH_FILE — push не нужен"
   exit 0
 fi
 
+echo "[SYNC] Изменения обнаружены, коммит и push..."
 git add "$OUTPUT_FILE" "$HASH_FILE"
 if [ -n "${GIT_SIGN_COMMITS}" ] && [ "${GIT_SIGN_COMMITS}" != "0" ] && [ "${GIT_SIGN_COMMITS}" != "false" ] && [ "${GIT_SIGN_COMMITS}" != "no" ]; then
   git commit -S -m "Auto-update IPs"
@@ -47,4 +52,4 @@ while true; do
 done
 
 [ -n "$orig" ] && git remote set-url origin "$orig"
-echo "[PUSH] Done."
+echo "[PUSH] Готово. Ветка $branch"

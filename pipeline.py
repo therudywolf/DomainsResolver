@@ -34,7 +34,7 @@ from ip_utils import parse_entry, optimize_list
 INPUT_FILE = os.environ.get("INPUT_FILE", "input.txt")
 OUTPUT_FILE = os.environ.get("OUTPUT_FILE", "output_optimized.txt")
 CONCURRENCY_LIMIT = int(os.environ.get("CONCURRENCY_LIMIT", "1"))
-DELAY = float(os.environ.get("DELAY", "0.9"))
+DELAY = float(os.environ.get("DELAY", "1.0"))
 RESOLVER_TIMEOUT = float(os.environ.get("RESOLVER_TIMEOUT", "5.0"))
 MAX_RETRIES = 3
 RESOLVE_AAAA = os.environ.get("RESOLVE_AAAA", "").strip().lower() in ("1", "true", "yes")

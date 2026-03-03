@@ -45,8 +45,10 @@ chmod +x start.sh verify.sh deploy.sh
 
 ## .env
 
-Обязательно: `GIT_PUSH_TOKEN`  
+Обязательно: `GIT_PUSH_TOKEN`, `GIT_USER_NAME`, `GIT_USER_EMAIL`  
 При NextDNS: `DNS_OVER_TLS=1` и `DNS_OVER_TLS_SERVERS=...`
+
+**DNS:** `DELAY=1.0` и `CONCURRENCY_LIMIT=1` — по умолчанию. Быстрее = риск бана.
 
 Если `.env` копировался с Windows: `sed -i 's/\r$//' .env`
 
