@@ -64,7 +64,7 @@ GIT_PUSH_TOKEN=ghp_твой_токен_сюда
 
 Резолвит несколько тестовых доменов (example.com, github.com, cloudflare.com) с отладкой (LOG_LEVEL=DEBUG), проверяет доступность git push (dry-run). Убедись, что всё работает перед `./run.sh` или `deploy.sh`.
 
-Без Python на хосте: `./deploy.sh` сам запустит проверку через Docker при первом запуске.
+Работает только через Docker — Python на хосте не нужен.
 
 ### 5. Запуск
 

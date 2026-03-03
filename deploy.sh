@@ -32,30 +32,11 @@ docker compose build
 if [ -z "$SKIP_VERIFY" ] && [ ! -f ".deploy_done" ]; then
   echo "[DEPLOY] Первый запуск — проверка DNS и push..."
   chmod +x verify.sh 2>/dev/null || true
-  # Запуск verify: можно через ./verify.sh (нужен Python) или docker
-  if docker compose run --rm \
-    -e INPUT_FILE=verify_input.txt \
-    -e OUTPUT_FILE=output_verify.txt \
-    -e HASH_FILE=.verify_hash \
-    -e LOG_LEVEL=DEBUG \
-    -e FORCE_RUN=1 \
-    -e USE_DOMAIN_CACHE=0 \
-    app bash -c "python3 pipeline.py" 2>/dev/null; then
-    echo "[OK] DNS резолв проверен"
-    # Тест push (dry-run)
-    if [ -n "${GIT_PUSH_TOKEN}" ]; then
-      branch="${GIT_BRANCH:-$(git branch --show-current 2>/dev/null || echo main)}"
-      orig="$(git remote get-url origin 2>/dev/null)" && [ -n "$orig" ] && [[ "$orig" == https://* ]] && \
-        git remote set-url origin "https://oauth2:${GIT_PUSH_TOKEN}@${orig#https://}"
-      if git push --dry-run origin "$branch" 2>/dev/null; then
-        echo "[OK] Push доступен"
-      fi
-      [ -n "$orig" ] && git remote set-url origin "$orig"
-    fi
+  if ./verify.sh; then
     touch .deploy_done
     echo ""
   else
-    echo "[WARN] Проверка не прошла. Запусти ./verify.sh вручную. Продолжить deploy? (y/n)"
+    echo "[WARN] verify.sh не прошёл. Продолжить deploy? (y/n)"
     read -r ans
     [ "$ans" != "y" ] && [ "$ans" != "Y" ] && exit 1
   fi

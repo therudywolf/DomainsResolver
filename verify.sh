@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Первый запуск: проверка DNS-резолва и git push.
-# ./verify.sh — тест без пуша в репо
+# Первый запуск: проверка DNS и push. Только Docker, без Python на хосте.
+# ./verify.sh — тест без пуша
 # ./verify.sh --push — полный тест с реальным push
 
 set -e
@@ -14,7 +14,7 @@ DO_PUSH=""
 [ "${1}" = "--push" ] && DO_PUSH=1
 
 echo "=============================================="
-echo "  DMTCDRK — проверка первого запуска"
+echo "  DMTCDRK — проверка (Docker)"
 echo "=============================================="
 echo ""
 
@@ -23,8 +23,7 @@ if [ ! -f "$VERIFY_INPUT" ]; then
   echo "[ERROR] $VERIFY_INPUT не найден."
   exit 1
 fi
-echo "[1/4] Входной файл: $VERIFY_INPUT ($(wc -l < "$VERIFY_INPUT" | tr -d ' ') строк)"
-echo ""
+echo "[1/4] Входной файл: $VERIFY_INPUT"
 
 # 2. Загрузка .env (убираем CRLF для Linux)
 if [ -f ".env" ]; then
@@ -33,16 +32,22 @@ if [ -f ".env" ]; then
   set +a
   echo "[2/4] .env загружен"
 else
-  echo "[WARN] .env не найден, используются дефолты"
+  echo "[WARN] .env не найден"
 fi
 echo ""
 
-# 3. DNS + пайплайн (с отладкой)
-echo "[3/4] Запуск пайплайна (LOG_LEVEL=DEBUG)..."
+# 3. Сборка и запуск пайплайна через Docker
+echo "[3/4] Сборка и запуск пайплайна (Docker)..."
 echo "----------------------------------------------"
-INPUT_FILE="$VERIFY_INPUT" OUTPUT_FILE="$VERIFY_OUTPUT" HASH_FILE="$VERIFY_HASH" \
-  LOG_LEVEL=DEBUG FORCE_RUN=1 USE_DOMAIN_CACHE=0 \
-  python3 pipeline.py
+docker compose build -q
+docker compose run --rm \
+  -e INPUT_FILE="$VERIFY_INPUT" \
+  -e OUTPUT_FILE="$VERIFY_OUTPUT" \
+  -e HASH_FILE="$VERIFY_HASH" \
+  -e LOG_LEVEL=DEBUG \
+  -e FORCE_RUN=1 \
+  -e USE_DOMAIN_CACHE=0 \
+  app python3 pipeline.py
 echo "----------------------------------------------"
 echo ""
 
@@ -66,12 +71,10 @@ if [ -z "${GIT_PUSH_TOKEN}" ]; then
 fi
 
 if [ -n "$DO_PUSH" ]; then
-  # Реальный push verify-результата (output_verify.txt)
   if git status --porcelain "$VERIFY_OUTPUT" "$VERIFY_HASH" 2>/dev/null | grep -q .; then
     OUTPUT_FILE="$VERIFY_OUTPUT" HASH_FILE="$VERIFY_HASH" ./sync.sh
     echo "[OK] Push выполнен (verify)"
   else
-    # Нет изменений — dry-run для проверки доступа
     orig=""
     branch="${GIT_BRANCH:-$(git branch --show-current 2>/dev/null || echo main)}"
     if orig="$(git remote get-url origin 2>/dev/null)" && [ -n "$orig" ] && [[ "$orig" == https://* ]]; then
@@ -81,7 +84,6 @@ if [ -n "$DO_PUSH" ]; then
     [ -n "$orig" ] && git remote set-url origin "$orig"
   fi
 else
-  # Dry-run: проверка доступа без пуша
   orig=""
   branch="${GIT_BRANCH:-$(git branch --show-current 2>/dev/null || echo main)}"
   if orig="$(git remote get-url origin 2>/dev/null)" && [ -n "$orig" ] && [[ "$orig" == https://* ]]; then
@@ -97,5 +99,5 @@ fi
 
 echo ""
 echo "=============================================="
-echo "  Всё работает. Запускай: ./run.sh или deploy.sh"
+echo "  Всё работает. Запускай: ./deploy.sh"
 echo "=============================================="
