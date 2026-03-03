@@ -11,8 +11,9 @@ git clone https://github.com/rudywolf/DMTCDRK.git
 cd DMTCDRK
 cp .env.example .env
 # Отредактируй .env: GIT_PUSH_TOKEN, DNS_OVER_TLS_SERVERS (если NextDNS)
-chmod +x deploy.sh run.sh sync.sh scheduler.sh
-./deploy.sh
+chmod +x deploy.sh run.sh sync.sh scheduler.sh verify.sh
+./verify.sh          # первый раз: проверка DNS и push с отладкой
+./deploy.sh          # deploy запустит verify автоматически при первом запуске
 ```
 
 Daemon запустится в фоне. Логи: `docker compose logs -f daemon`
@@ -140,6 +141,7 @@ crontab -e
 
 - [ ] `cp .env.example .env` и заполнить `GIT_PUSH_TOKEN`
 - [ ] При NextDNS: `DNS_OVER_TLS=1` и `DNS_OVER_TLS_SERVERS=...`
+- [ ] `./verify.sh` — проверка DNS и push с отладкой
 - [ ] `input.txt` с доменами/IP в корне
-- [ ] `docker compose up -d daemon` — daemon в фоне
+- [ ] `docker compose up -d daemon` или `./deploy.sh`
 - [ ] `docker compose logs -f daemon` — проверить логи

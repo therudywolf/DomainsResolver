@@ -56,7 +56,17 @@ GIT_PUSH_TOKEN=ghp_твой_токен_сюда
 
 Остальное в `.env` можно не трогать (дефолты ок).
 
-### 4. Запуск
+### 4. Первый запуск — проверка
+
+```bash
+./verify.sh
+```
+
+Резолвит несколько тестовых доменов (example.com, github.com, cloudflare.com) с отладкой (LOG_LEVEL=DEBUG), проверяет доступность git push (dry-run). Убедись, что всё работает перед `./run.sh` или `deploy.sh`.
+
+Без Python на хосте: `./deploy.sh` сам запустит проверку через Docker при первом запуске.
+
+### 5. Запуск
 
 **Docker Compose — два режима:**
 
@@ -77,7 +87,7 @@ chmod +x run.sh sync.sh
 
 Первый прогон: резолв доменов, оптимизация, запись `output_optimized.txt` и `.input_hash`. Если что-то изменилось — `sync.sh` сделает commit и push (если задан `GIT_PUSH_TOKEN`).
 
-### 5. Регулярный запуск (cron или daemon)
+### 6. Регулярный запуск (cron или daemon)
 
 Чтобы стая выходила раз в день без твоего участия:
 
@@ -197,4 +207,5 @@ pytest tests/ -v
 - `run.sh` — проверка хеша, запуск пайплайна, обновление `.input_hash`, вызов sync.
 - `scheduler.sh` — цикл для daemon: запуск `run.sh` каждые N минут.
 - `deploy.sh` — развёртывание на сервере: сборка + `docker compose up -d daemon`.
+- `verify.sh` — первый запуск: проверка DNS и push с отладкой.
 - `sync.sh` — git add/commit/push при изменении output/hash; откат origin после пуша.

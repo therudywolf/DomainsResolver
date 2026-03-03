@@ -1,0 +1,7 @@
+# DMTCDRK — тестовый список для ./verify.sh
+# Несколько доменов для проверки DNS и пайплайна
+
+example.com
+github.com
+cloudflare.com
+1.1.1.1
