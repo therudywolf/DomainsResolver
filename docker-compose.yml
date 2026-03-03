@@ -21,7 +21,7 @@ services:
       - LOG_LEVEL=DEBUG
       - FORCE_RUN=1
       - USE_DOMAIN_CACHE=0
-    command: ["./verify_inner.sh"]
+    command: ["bash", "verify_inner.sh"]
 
   run:
     build: .
@@ -35,7 +35,7 @@ services:
       - INPUT_FILE=${INPUT_FILE:-input.txt}
       - OUTPUT_FILE=${OUTPUT_FILE:-output_optimized.txt}
       - HASH_FILE=${HASH_FILE:-.input_hash}
-    command: ["./run.sh"]
+    command: ["bash", "run.sh"]
 
   daemon:
     build: .
@@ -49,5 +49,5 @@ services:
       - OUTPUT_FILE=${OUTPUT_FILE:-output_optimized.txt}
       - HASH_FILE=${HASH_FILE:-.input_hash}
       - USE_DOMAIN_CACHE=${USE_DOMAIN_CACHE:-1}
-    command: ["./scheduler.sh"]
+    command: ["bash", "scheduler.sh"]
     restart: unless-stopped

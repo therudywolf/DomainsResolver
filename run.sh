@@ -44,7 +44,7 @@ echo "$current_hash" > "$HASH_FILE"
 
 # Sync to git if output or hash changed
 if [ -f "sync.sh" ]; then
-  ./sync.sh
+  bash sync.sh
 else
   if git status --porcelain "$OUTPUT_FILE" "$HASH_FILE" 2>/dev/null | grep -q .; then
     git add "$OUTPUT_FILE" "$HASH_FILE"
