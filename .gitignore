@@ -136,6 +136,10 @@ celerybeat.pid
 
 # Environments
 .env
+.env.*
+!.env.example
+env.server
+.env.server
 .envrc
 .venv
 env/
@@ -205,3 +209,8 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# DMTCDRK pipeline
+*.tmp
+output_optimized.txt.tmp
+.pytest_cache/

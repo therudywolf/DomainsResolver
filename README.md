@@ -16,20 +16,23 @@ Reads a single input file (`input.txt`) containing domains (including wildcards 
 
 1. Create `input.txt` in the project root: one entry per line (domain, `*.domain.com`, IP, or CIDR). Empty lines and lines starting with `#` are ignored.
 
-2. **Local run**
+2. **Deploy on server**  
+   Copy project to server, create `.env` from `.env.example`, set `GIT_PUSH_TOKEN` (create token at https://github.com/settings/tokens). See [DEPLOY.md](DEPLOY.md) for step-by-step instructions.
+
+3. **Local run**
    ```bash
    pip install -r requirements.txt
    python pipeline.py              # single run
    ./run.sh                        # run with hash check + optional git push
    ```
 
-3. **Docker**
+4. **Docker**
    ```bash
    docker compose run --rm app ./run.sh
    ```
    The service uses the `daily` profile so it does not start with `docker compose up`; use `run` for one-off or cron.
 
-4. **Cron (e.g. daily at 3:00)**  
+5. **Cron (e.g. daily at 3:00)**  
    From repo directory:
    ```bash
    0 3 * * * cd /path/to/DMTCDRK && docker compose run --rm app ./run.sh
