@@ -26,9 +26,12 @@ else
   exit 1
 fi
 
-if [ -f "$HASH_FILE" ] && [ "$(cat "$HASH_FILE")" = "$current_hash" ]; then
-  echo "[SKIP] input unchanged, skipping pipeline."
-  exit 0
+# Skip pipeline when input unchanged, unless FORCE_RUN is set
+if [ -z "${FORCE_RUN}" ] || [ "${FORCE_RUN}" = "0" ] || [ "${FORCE_RUN}" = "false" ] || [ "${FORCE_RUN}" = "no" ]; then
+  if [ -f "$HASH_FILE" ] && [ "$(cat "$HASH_FILE")" = "$current_hash" ]; then
+    echo "[SKIP] input unchanged, skipping pipeline."
+    exit 0
+  fi
 fi
 
 python3 pipeline.py || exit 1

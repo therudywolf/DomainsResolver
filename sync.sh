@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 # If output_optimized.txt or .input_hash changed, git add, commit, push.
-# Uses GIT_PUSH_TOKEN for HTTPS push when set.
+# Uses GIT_PUSH_TOKEN for HTTPS push when set. Restores origin URL after push.
+# Retries git push up to 3 times on failure.
 
 set -e
 OUTPUT_FILE="${OUTPUT_FILE:-output_optimized.txt}"
 HASH_FILE="${HASH_FILE:-.input_hash}"
+GIT_PUSH_RETRIES="${GIT_PUSH_RETRIES:-3}"
+GIT_PUSH_SLEEP="${GIT_PUSH_SLEEP:-5}"
 
 if ! git status --porcelain "$OUTPUT_FILE" "$HASH_FILE" 2>/dev/null | grep -q .; then
   echo "[SKIP] No changes to $OUTPUT_FILE or $HASH_FILE, nothing to push."
@@ -12,8 +15,13 @@ if ! git status --porcelain "$OUTPUT_FILE" "$HASH_FILE" 2>/dev/null | grep -q .;
 fi
 
 git add "$OUTPUT_FILE" "$HASH_FILE"
-git commit -m "Auto-update IPs"
+if [ -n "${GIT_SIGN_COMMITS}" ] && [ "${GIT_SIGN_COMMITS}" != "0" ] && [ "${GIT_SIGN_COMMITS}" != "false" ] && [ "${GIT_SIGN_COMMITS}" != "no" ]; then
+  git commit -S -m "Auto-update IPs"
+else
+  git commit -m "Auto-update IPs"
+fi
 
+orig=""
 if [ -n "${GIT_PUSH_TOKEN}" ]; then
   orig="$(git remote get-url origin 2>/dev/null || true)"
   if [ -n "$orig" ] && [[ "$orig" == https://* ]]; then
@@ -22,5 +30,21 @@ if [ -n "${GIT_PUSH_TOKEN}" ]; then
   fi
 fi
 
-git push
+attempt=1
+branch="${GIT_BRANCH:-$(git branch --show-current)}"
+while true; do
+  if git push origin "$branch"; then
+    break
+  fi
+  if [ "$attempt" -ge "$GIT_PUSH_RETRIES" ]; then
+    echo "[ERROR] git push failed after $GIT_PUSH_RETRIES attempts." >&2
+    [ -n "$orig" ] && git remote set-url origin "$orig"
+    exit 1
+  fi
+  echo "[WARN] git push failed (attempt $attempt), retrying in ${GIT_PUSH_SLEEP}s..."
+  sleep "$GIT_PUSH_SLEEP"
+  attempt=$((attempt + 1))
+done
+
+[ -n "$orig" ] && git remote set-url origin "$orig"
 echo "[PUSH] Done."

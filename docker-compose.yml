@@ -2,6 +2,8 @@ services:
   app:
     build: .
     image: dmtcdrk-pipeline:latest
+    profiles:
+      - daily
     volumes:
       - .:/data
     working_dir: /data
@@ -11,5 +13,13 @@ services:
       - HASH_FILE=${HASH_FILE:-.input_hash}
       - CONCURRENCY_LIMIT=${CONCURRENCY_LIMIT:-1}
       - DELAY=${DELAY:-0.9}
+      - RESOLVER_TIMEOUT=${RESOLVER_TIMEOUT:-5.0}
+      - DNS_POOL=${DNS_POOL}
+      - FORCE_RUN=${FORCE_RUN}
+      - KEEP_LAST_OUTPUT_IF_EMPTY=${KEEP_LAST_OUTPUT_IF_EMPTY}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - RESOLVE_AAAA=${RESOLVE_AAAA}
       - GIT_PUSH_TOKEN=${GIT_PUSH_TOKEN}
+      - GIT_BRANCH=${GIT_BRANCH}
+      - GIT_SIGN_COMMITS=${GIT_SIGN_COMMITS}
     command: ["./run.sh"]
