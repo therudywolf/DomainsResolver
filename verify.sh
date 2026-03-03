@@ -26,10 +26,10 @@ fi
 echo "[1/4] Входной файл: $VERIFY_INPUT ($(wc -l < "$VERIFY_INPUT" | tr -d ' ') строк)"
 echo ""
 
-# 2. Загрузка .env
+# 2. Загрузка .env (убираем CRLF для Linux)
 if [ -f ".env" ]; then
   set -a
-  . ./.env
+  . <(sed 's/\r$//' .env)
   set +a
   echo "[2/4] .env загружен"
 else

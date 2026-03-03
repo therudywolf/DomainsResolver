@@ -48,6 +48,8 @@ cd DMTCDRK
 ```bash
 cp .env.example .env
 chmod 600 .env
+# Если .env копировался с Windows — конвертировать в Unix:
+sed -i 's/\r$//' .env
 ```
 
 В `.env` обязательно заполнить:

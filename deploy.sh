@@ -9,8 +9,8 @@ PROJECT_DIR="${1:-$(cd "$(dirname "$0")" && pwd)}"
 [ "$1" != "--no-verify" ] && SKIP_VERIFY=""
 cd "$PROJECT_DIR"
 
-# Загрузка .env
-[ -f .env ] && set -a && . ./.env && set +a
+# Загрузка .env (убираем CRLF для Linux)
+[ -f .env ] && set -a && . <(sed 's/\r$//' .env) && set +a
 
 echo "[DEPLOY] DMTCDRK → $PROJECT_DIR"
 
