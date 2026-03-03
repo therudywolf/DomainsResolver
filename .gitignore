@@ -211,6 +211,7 @@ marimo/_lsp/
 __marimo__/
 
 # DMTCDRK pipeline
+input.txt
 *.tmp
 output_optimized.txt.tmp
 domain_cache.json
