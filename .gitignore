@@ -213,4 +213,6 @@ __marimo__/
 # DMTCDRK pipeline
 *.tmp
 output_optimized.txt.tmp
+domain_cache.json
+domain_cache.json.tmp
 .pytest_cache/

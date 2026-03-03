@@ -1,9 +1,13 @@
+# DMTCDRK — Production
+#
+# 1) Один прогон:     docker compose run --rm app
+# 2) Фон (production): docker compose up -d daemon
+#    Частота в .env: SCHEDULE_INTERVAL_MINUTES=60
+
 services:
   app:
     build: .
     image: dmtcdrk-pipeline:latest
-    profiles:
-      - daily
     volumes:
       - .:/data
     working_dir: /data
@@ -11,10 +15,16 @@ services:
       - INPUT_FILE=${INPUT_FILE:-input.txt}
       - OUTPUT_FILE=${OUTPUT_FILE:-output_optimized.txt}
       - HASH_FILE=${HASH_FILE:-.input_hash}
-      - CONCURRENCY_LIMIT=${CONCURRENCY_LIMIT:-1}
-      - DELAY=${DELAY:-0.9}
+      - DOMAIN_CACHE_FILE=${DOMAIN_CACHE_FILE:-domain_cache.json}
+      - SCHEDULE_INTERVAL_MINUTES=${SCHEDULE_INTERVAL_MINUTES:-60}
+      - CONCURRENCY_LIMIT=${CONCURRENCY_LIMIT:-2}
+      - DELAY=${DELAY:-0.5}
       - RESOLVER_TIMEOUT=${RESOLVER_TIMEOUT:-5.0}
+      - RESOLVE_PER_RUN=${RESOLVE_PER_RUN:-5000}
+      - CACHE_TTL_HOURS=${CACHE_TTL_HOURS:-24}
       - DNS_POOL=${DNS_POOL}
+      - DNS_OVER_TLS=${DNS_OVER_TLS}
+      - DNS_OVER_TLS_SERVERS=${DNS_OVER_TLS_SERVERS}
       - FORCE_RUN=${FORCE_RUN}
       - KEEP_LAST_OUTPUT_IF_EMPTY=${KEEP_LAST_OUTPUT_IF_EMPTY}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
@@ -23,3 +33,35 @@ services:
       - GIT_BRANCH=${GIT_BRANCH}
       - GIT_SIGN_COMMITS=${GIT_SIGN_COMMITS}
     command: ["./run.sh"]
+
+  # Фон: docker compose up -d daemon
+  daemon:
+    build: .
+    image: dmtcdrk-pipeline:latest
+    volumes:
+      - .:/data
+    working_dir: /data
+    environment:
+      - INPUT_FILE=${INPUT_FILE:-input.txt}
+      - OUTPUT_FILE=${OUTPUT_FILE:-output_optimized.txt}
+      - HASH_FILE=${HASH_FILE:-.input_hash}
+      - DOMAIN_CACHE_FILE=${DOMAIN_CACHE_FILE:-domain_cache.json}
+      - SCHEDULE_INTERVAL_MINUTES=${SCHEDULE_INTERVAL_MINUTES:-60}
+      - USE_DOMAIN_CACHE=${USE_DOMAIN_CACHE:-1}
+      - CONCURRENCY_LIMIT=${CONCURRENCY_LIMIT:-2}
+      - DELAY=${DELAY:-0.5}
+      - RESOLVER_TIMEOUT=${RESOLVER_TIMEOUT:-5.0}
+      - RESOLVE_PER_RUN=${RESOLVE_PER_RUN:-5000}
+      - CACHE_TTL_HOURS=${CACHE_TTL_HOURS:-24}
+      - DNS_POOL=${DNS_POOL}
+      - DNS_OVER_TLS=${DNS_OVER_TLS}
+      - DNS_OVER_TLS_SERVERS=${DNS_OVER_TLS_SERVERS}
+      - FORCE_RUN=${FORCE_RUN}
+      - KEEP_LAST_OUTPUT_IF_EMPTY=${KEEP_LAST_OUTPUT_IF_EMPTY}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - RESOLVE_AAAA=${RESOLVE_AAAA}
+      - GIT_PUSH_TOKEN=${GIT_PUSH_TOKEN}
+      - GIT_BRANCH=${GIT_BRANCH}
+      - GIT_SIGN_COMMITS=${GIT_SIGN_COMMITS}
+    command: ["./scheduler.sh"]
+    restart: unless-stopped

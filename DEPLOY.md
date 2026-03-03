@@ -1,6 +1,21 @@
 # Развёртывание на сервере
 
-Кратко: скопировать проект → создать токен GitHub → заполнить `.env` → запускать по cron.
+Production: скопировать проект → заполнить `.env` → `./deploy.sh`
+
+---
+
+## Быстрый старт (production)
+
+```bash
+git clone https://github.com/rudywolf/DMTCDRK.git
+cd DMTCDRK
+cp .env.example .env
+# Отредактируй .env: GIT_PUSH_TOKEN, DNS_OVER_TLS_SERVERS (если NextDNS)
+chmod +x deploy.sh run.sh sync.sh scheduler.sh
+./deploy.sh
+```
+
+Daemon запустится в фоне. Логи: `docker compose logs -f daemon`
 
 ---
 
@@ -44,6 +59,19 @@ GIT_PUSH_TOKEN=ghp_твой_токен
 
 ---
 
+## 3.1. DNS over TLS (по желанию)
+
+Для резолва через зашифрованный DoT (например [NextDNS](https://nextdns.io)) в `.env` добавь:
+
+```bash
+DNS_OVER_TLS=1
+DNS_OVER_TLS_SERVERS=45.90.28.61:твой-id.dns.nextdns.io,45.90.30.61:твой-id.dns.nextdns.io
+```
+
+Формат: через запятую пары `IP:hostname`. Без этих переменных используется обычный DNS (системный или `DNS_POOL`).
+
+---
+
 ## 4. Входной файл
 
 По умолчанию — `input.txt` в корне проекта. Либо в `.env` задать `INPUT_FILE=/path/to/domains.txt`.
@@ -52,14 +80,18 @@ GIT_PUSH_TOKEN=ghp_твой_токен
 
 ## 5. Запуск
 
-**Docker:**
-
+**Один прогон:**
 ```bash
-docker compose run --rm app ./run.sh
+docker compose run --rm app
+```
+
+**Фон с интервалом (production):**
+```bash
+# -d = detached (в фоне). В .env: SCHEDULE_INTERVAL_MINUTES=60
+docker compose up -d daemon
 ```
 
 **Без Docker:**
-
 ```bash
 pip install -r requirements.txt
 chmod +x run.sh sync.sh
@@ -67,26 +99,27 @@ chmod +x run.sh sync.sh
 ```
 
 Проверка без пуша (токен не подставлять):  
-`docker compose run --rm -e GIT_PUSH_TOKEN= app ./run.sh`
+`docker compose run --rm -e GIT_PUSH_TOKEN= app`
 
 ---
 
-## 6. Cron (раз в день)
+## 6. Cron или daemon
 
 ```bash
 crontab -e
 ```
 
-Строка (подставить путь):
+**Вариант A — daemon (проще):** `docker compose up daemon` — работает в фоне. Частота в `.env`: `SCHEDULE_INTERVAL_MINUTES=60`.
 
+**Вариант B — cron:**
 ```cron
-0 3 * * * cd /path/to/DMTCDRK && docker compose run --rm app ./run.sh >> /var/log/dmtcdrk.log 2>&1
+0 3 * * * cd /path/to/DMTCDRK && docker compose run --rm app >> /var/log/dmtcdrk.log 2>&1
 ```
 
 Без Docker:  
 `0 3 * * * cd /path/to/DMTCDRK && ./run.sh >> /var/log/dmtcdrk.log 2>&1`
 
-Пайплайн выполняется только при изменении `input.txt`. При изменении `output_optimized.txt` скрипт сделает commit и push.
+При изменении `output_optimized.txt` скрипт сделает commit и push.
 
 ---
 
@@ -98,5 +131,15 @@ crontab -e
 
 ## .gitignore
 
-Не коммитятся: `.env`, `.env.*` (кроме `.env.example`), `*.tmp`, `output_optimized.txt.tmp`, кэш тестов.  
+Не коммитятся: `.env`, `.env.*` (кроме `.env.example`), `*.tmp`, `domain_cache.json`, кэш тестов.  
 `output_optimized.txt` и `.input_hash` коммитятся и пушатся скриптом.
+
+---
+
+## Production checklist
+
+- [ ] `cp .env.example .env` и заполнить `GIT_PUSH_TOKEN`
+- [ ] При NextDNS: `DNS_OVER_TLS=1` и `DNS_OVER_TLS_SERVERS=...`
+- [ ] `input.txt` с доменами/IP в корне
+- [ ] `docker compose up -d daemon` — daemon в фоне
+- [ ] `docker compose logs -f daemon` — проверить логи

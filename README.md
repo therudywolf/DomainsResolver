@@ -58,11 +58,14 @@ GIT_PUSH_TOKEN=ghp_твой_токен_сюда
 
 ### 4. Запуск
 
-**Через Docker (проще всего):**
+**Docker Compose — два режима:**
 
-```bash
-docker compose run --rm app ./run.sh
-```
+| Команда | Режим |
+|---------|-------|
+| `docker compose run --rm app` | Один прогон |
+| `docker compose up -d daemon` | Фон (production) |
+
+Частота проверки — в `.env`: `SCHEDULE_INTERVAL_MINUTES=60` (каждый час) или `1440` (раз в день).
 
 **Без Docker:**
 
@@ -74,7 +77,7 @@ chmod +x run.sh sync.sh
 
 Первый прогон: резолв доменов, оптимизация, запись `output_optimized.txt` и `.input_hash`. Если что-то изменилось — `sync.sh` сделает commit и push (если задан `GIT_PUSH_TOKEN`).
 
-### 5. Регулярный запуск (cron)
+### 5. Регулярный запуск (cron или daemon)
 
 Чтобы стая выходила раз в день без твоего участия:
 
@@ -94,7 +97,25 @@ crontab -e
 0 3 * * * cd /path/to/DMTCDRK && ./run.sh >> /var/log/dmtcdrk.log 2>&1
 ```
 
-Резолв по полному списку пойдёт только когда изменится `input.txt`; иначе скрипт просто выйдет без лишней нагрузки.
+**Вариант A — Docker daemon (рекомендуется):** `docker compose up daemon` — работает в фоне, проверяет каждые `SCHEDULE_INTERVAL_MINUTES` минут. Подходит для 60–100K доменов (инкрементальный кэш).
+
+**Вариант B — cron:** Резолв по полному списку пойдёт только когда изменится `input.txt`; иначе скрипт просто выйдет без лишней нагрузки.
+
+---
+
+## 60–100K доменов (инкрементальный режим)
+
+Для больших списков используй daemon с кэшем:
+
+```bash
+# .env
+SCHEDULE_INTERVAL_MINUTES=60
+USE_DOMAIN_CACHE=1
+RESOLVE_PER_RUN=5000
+CACHE_TTL_HOURS=24
+```
+
+Запуск: `docker compose up daemon`. Каждый прогон обновляет до 5000 доменов; за 24 часа все 100K перепроверяются. Нагрузка распределена равномерно.
 
 ---
 
@@ -107,8 +128,15 @@ crontab -e
 | `GIT_PUSH_TOKEN` | — | Токен GitHub (PAT). Без него push не будет. |
 | `INPUT_FILE` | `input.txt` | Файл со списком доменов/IP/CIDR. |
 | `OUTPUT_FILE` | `output_optimized.txt` | Куда писать итог. |
-| `CONCURRENCY_LIMIT` | `1` | Сколько DNS-запросов параллельно (лучше низко). |
-| `DELAY` | `0.9` | Пауза между запросами (сек). |
+| `DNS_OVER_TLS` | — | `1` — использовать DNS over TLS (шифрование). Иначе обычный DNS из `DNS_POOL`. |
+| `DNS_OVER_TLS_SERVERS` | — | Список DoT-серверов: `IP:hostname,IP:hostname`. Пример NextDNS: `45.90.28.61:xxx.dns.nextdns.io,45.90.30.61:xxx.dns.nextdns.io`. |
+| `DNS_POOL` | 8.8.8.8, 1.1.1.1, … | Обычные DNS (если DoT выключен), через запятую. |
+| `SCHEDULE_INTERVAL_MINUTES` | `60` | Интервал проверки в daemon (мин). 60=час, 1440=день. |
+| `USE_DOMAIN_CACHE` | — | `1` — инкрементальный кэш (для daemon, 60–100K доменов). |
+| `RESOLVE_PER_RUN` | `5000` | Доменов за один прогон (при USE_DOMAIN_CACHE). |
+| `CACHE_TTL_HOURS` | `24` | Через сколько часов перепроверять домен. |
+| `CONCURRENCY_LIMIT` | `2` | Сколько DNS-запросов параллельно. |
+| `DELAY` | `0.5` | Пауза между запросами (сек). |
 | `GIT_BRANCH` | текущая ветка | В какую ветку пушить. |
 | `FORCE_RUN` | — | `1` — игнорировать хеш, всегда гонять пайплайн. |
 | `KEEP_LAST_OUTPUT_IF_EMPTY` | — | `1` — при пустом результате не затирать старый output. |
@@ -116,6 +144,17 @@ crontab -e
 | `LOG_LEVEL` | `INFO` | Уровень логов: DEBUG, INFO, WARNING, ERROR. |
 
 Полный список и тонкости — в [.env.example](.env.example). Развёртывание на сервере по шагам — [DEPLOY.md](DEPLOY.md).
+
+### DNS over TLS (DoT)
+
+Чтобы резолвить домены через зашифрованный DoT (например NextDNS), в `.env` добавь:
+
+```bash
+DNS_OVER_TLS=1
+DNS_OVER_TLS_SERVERS=45.90.28.61:твой-профиль.dns.nextdns.io,45.90.30.61:твой-профиль.dns.nextdns.io
+```
+
+Формат: через запятую пары `IP:hostname` (hostname — для проверки TLS). Без DoT используется обычный DNS из `DNS_POOL`.
 
 ---
 
@@ -156,4 +195,6 @@ pytest tests/ -v
 - `ip_utils.py` — парсинг IP/CIDR и `optimize_list`.
 - `script.py` — отдельный консолидатор по директории (использует ip_utils).
 - `run.sh` — проверка хеша, запуск пайплайна, обновление `.input_hash`, вызов sync.
+- `scheduler.sh` — цикл для daemon: запуск `run.sh` каждые N минут.
+- `deploy.sh` — развёртывание на сервере: сборка + `docker compose up -d daemon`.
 - `sync.sh` — git add/commit/push при изменении output/hash; откат origin после пуша.

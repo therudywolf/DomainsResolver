@@ -26,8 +26,13 @@ else
   exit 1
 fi
 
-# Skip pipeline when input unchanged, unless FORCE_RUN is set
-if [ -z "${FORCE_RUN}" ] || [ "${FORCE_RUN}" = "0" ] || [ "${FORCE_RUN}" = "false" ] || [ "${FORCE_RUN}" = "no" ]; then
+# Skip pipeline when input unchanged, unless FORCE_RUN or USE_DOMAIN_CACHE is set
+# USE_DOMAIN_CACHE=1: incremental mode — всегда запускаем (обновляем кэш по чанкам)
+skip_hash_check=
+[ "${USE_DOMAIN_CACHE}" = "1" ] || [ "${USE_DOMAIN_CACHE}" = "true" ] || [ "${USE_DOMAIN_CACHE}" = "yes" ] && skip_hash_check=1
+[ "${FORCE_RUN}" = "1" ] || [ "${FORCE_RUN}" = "true" ] || [ "${FORCE_RUN}" = "yes" ] && skip_hash_check=1
+
+if [ -z "$skip_hash_check" ]; then
   if [ -f "$HASH_FILE" ] && [ "$(cat "$HASH_FILE")" = "$current_hash" ]; then
     echo "[SKIP] input unchanged, skipping pipeline."
     exit 0

@@ -9,8 +9,8 @@ RUN pip install --no-cache-dir dnspython
 RUN adduser --disabled-password --gecos "" pipeline
 
 WORKDIR /data
-COPY requirements.txt pipeline.py script.py ip_utils.py run.sh sync.sh ./
-RUN chmod +x run.sh sync.sh && chown -R pipeline:pipeline /data
+COPY requirements.txt pipeline.py script.py ip_utils.py run.sh sync.sh scheduler.sh ./
+RUN chmod +x run.sh sync.sh scheduler.sh && chown -R pipeline:pipeline /data
 
 USER pipeline
 
