@@ -4,7 +4,14 @@ Shared IP/CIDR parsing and list optimization. Used by pipeline.py and script.py.
 from __future__ import annotations
 
 from collections import defaultdict
-from ipaddress import AddressValueError, IPv4Address, IPv4Network, ip_address, ip_network
+from ipaddress import (
+    AddressValueError,
+    IPv4Address,
+    IPv4Network,
+    collapse_addresses,
+    ip_address,
+    ip_network,
+)
 from typing import List, Optional, Union
 
 
@@ -43,14 +50,54 @@ def parse_entry(entry: str) -> Optional[Union[IPv4Network, IPv4Address]]:
         return None
 
 
-def optimize_list(raw_entries: List[str]) -> List[str]:
+# Reserved/unsuitable for routing (filtered by default)
+_RESERVED_NETWORKS = [
+    ip_network("0.0.0.0/8"),      # current network / "any"
+    ip_network("127.0.0.0/8"),   # loopback
+    ip_network("224.0.0.0/4"),   # multicast
+    ip_network("240.0.0.0/4"),   # reserved (includes 255.255.255.255)
+]
+
+# Private ranges (filtered only when FILTER_PRIVATE=1)
+_PRIVATE_NETWORKS = [
+    ip_network("10.0.0.0/8"),
+    ip_network("172.16.0.0/12"),
+    ip_network("192.168.0.0/16"),
+]
+
+
+def is_reserved_or_unsuitable_for_routing(
+    parsed: Union[IPv4Address, IPv4Network],
+    filter_private: bool = False,
+) -> bool:
+    """Return True if the address/network should be excluded from routing blocklist."""
+    if isinstance(parsed, IPv4Address):
+        net = ip_network(str(parsed) + "/32")
+    else:
+        net = parsed
+    if any(net.overlaps(r) for r in _RESERVED_NETWORKS):
+        return True
+    if filter_private and any(net.overlaps(p) for p in _PRIVATE_NETWORKS):
+        return True
+    return False
+
+
+def optimize_list(
+    raw_entries: List[str],
+    *,
+    filter_reserved: bool = True,
+    filter_private: bool = False,
+    collapse_ips: bool = True,
+) -> List[str]:
     """
     Validate, deduplicate, aggregate subnets, filter IPs covered by networks,
-    sort. Returns sorted list of "ip" or "cidr/mask" strings.
+    sort. Optionally filter reserved/invalid addresses and collapse single IPs into subnets.
+    Returns sorted list of "ip" or "cidr/mask" strings.
     """
     networks: set = set()
     ips: set = set()
     invalid = 0
+    reserved_filtered = 0
 
     print("[PARSE] Валидация и разбор...")
     total = len(raw_entries)
@@ -61,11 +108,14 @@ def optimize_list(raw_entries: List[str]) -> List[str]:
         if parsed is None:
             invalid += 1
             continue
+        if filter_reserved and is_reserved_or_unsuitable_for_routing(parsed, filter_private):
+            reserved_filtered += 1
+            continue
         if parsed.__class__.__name__ == "IPv4Network":
             networks.add(parsed)
         else:
             ips.add(parsed)
-    print(f"\n[INFO] Отброшено невалидных: {invalid}")
+    print(f"\n[INFO] Отброшено невалидных: {invalid} | зарезервированных: {reserved_filtered}")
     print(f"[INFO] Подсетей: {len(networks)} | Отдельных IP: {len(ips)}")
 
     print("[OPTIMIZE] Агрегация подсетей...")
@@ -86,7 +136,16 @@ def optimize_list(raw_entries: List[str]) -> List[str]:
             filtered_ips.append(ip)
     print(f"\n[INFO] IP вне подсетей: {len(filtered_ips)}")
 
-    result = [str(n) for n in unique_nets] + [str(ip) for ip in filtered_ips]
+    if collapse_ips and filtered_ips:
+        print("[COLLAPSE] Объединение IP в подсети...")
+        all_nets: List[IPv4Network] = list(unique_nets) + [
+            ip_network(str(ip) + "/32") for ip in filtered_ips
+        ]
+        collapsed = list(collapse_addresses(all_nets))
+        result = [str(n) for n in collapsed]
+        print(f"[INFO] После объединения: {len(result)} записей")
+    else:
+        result = [str(n) for n in unique_nets] + [str(ip) for ip in filtered_ips]
 
     def sort_key(entry: str):
         if "/" in entry:

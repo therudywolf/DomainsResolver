@@ -320,8 +320,16 @@ def main_sync() -> None:
         merged = []
 
     print("[OPTIMIZE] Aggregating and deduplicating...")
+    filter_reserved = os.environ.get("FILTER_RESERVED", "1").strip().lower() in ("1", "true", "yes")
+    filter_private = os.environ.get("FILTER_PRIVATE", "0").strip().lower() in ("1", "true", "yes")
+    collapse_ips = os.environ.get("COLLAPSE_IPS_TO_SUBNETS", "1").strip().lower() in ("1", "true", "yes")
     try:
-        optimized = optimize_list(merged)
+        optimized = optimize_list(
+            merged,
+            filter_reserved=filter_reserved,
+            filter_private=filter_private,
+            collapse_ips=collapse_ips,
+        )
         optimized = optimized + ipv6_only
     except Exception as e:
         print(f"[ERROR] optimize_list failed: {e}", file=sys.stderr)
