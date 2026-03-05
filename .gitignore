@@ -219,3 +219,6 @@ domain_cache.json.tmp
 .deploy_done
 .start_done
 .pytest_cache/
+
+# WireGuard / local config
+wg/
