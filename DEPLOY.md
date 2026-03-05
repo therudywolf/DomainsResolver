@@ -9,18 +9,19 @@
 ```bash
 git clone https://github.com/rudywolf/DMTCDRK.git
 cd DMTCDRK
-chmod +x start.sh verify.sh deploy.sh
+chmod +x start.sh verify.sh verify_wg.sh deploy.sh
 ./start.sh
 ```
 
 `start.sh` сам:
 - создаёт `.env` и `input.txt` из примеров (если нет)
 - исправляет CRLF в `.env`
-- собирает образ
-- при первом запуске проверяет DNS и push
+- собирает образы (в т.ч. WireGuard)
+- поднимает контейнер WireGuard по конфигу `wg/forestserver_DE-DE-578.conf`
+- при первом запуске проверяет DNS и push (резолв через WG)
 - запускает daemon в фоне
 
-Заполни `GIT_PUSH_TOKEN` в `.env`, добавь домены в `input.txt`.
+Заполни `GIT_PUSH_TOKEN` в `.env`, добавь домены в `input.txt`. Конфиг WG должен лежать в `wg/forestserver_DE-DE-578.conf`.
 
 ---
 
@@ -35,18 +36,22 @@ chmod +x start.sh verify.sh deploy.sh
 
 | Команда | Описание |
 |---------|----------|
-| `./start.sh` | Подготовка + проверка + daemon |
-| `./verify.sh` | Только проверка |
+| `./start.sh` | Подготовка + WireGuard + проверка + daemon |
+| `./verify.sh` | Только проверка (DNS + push) |
+| `./verify_wg.sh` | Проверка WireGuard: туннель, handshake, резолв и трафик через WG |
 | `docker compose --profile run run --rm run` | Один прогон (cron) |
 | `docker compose up -d daemon` | Фон |
 | `docker compose logs -f daemon` | Логи |
+
+**WireGuard:** конфиг `wg/forestserver_DE-DE-578.conf`. Резолв доменов только через DNS этого WG (10.2.0.1). Verify/run/daemon работают в сети контейнера WG.
 
 ---
 
 ## .env
 
 Обязательно: `GIT_PUSH_TOKEN`, `GIT_USER_NAME`, `GIT_USER_EMAIL`  
-При NextDNS: `DNS_OVER_TLS=1` и `DNS_OVER_TLS_SERVERS=...`
+При NextDNS (без WG): `DNS_OVER_TLS=1` и `DNS_OVER_TLS_SERVERS=...`  
+При использовании WG резолв идёт только через WG DNS (`USE_WG_DNS=1`, `WG_DNS_IP=10.2.0.1` — заданы в compose для verify/run/daemon).
 
 **DNS:** `DELAY=1.0` и `CONCURRENCY_LIMIT=1` — по умолчанию. Быстрее = риск бана.
 
@@ -58,5 +63,7 @@ chmod +x start.sh verify.sh deploy.sh
 
 - [ ] `./start.sh` или заполнить `.env` и `input.txt` вручную
 - [ ] `GIT_PUSH_TOKEN` в `.env`
+- [ ] Конфиг WG в `wg/forestserver_DE-DE-578.conf`
 - [ ] `input.txt` с доменами
+- [ ] `./verify_wg.sh` — убедиться, что WG поднят и резолв через него
 - [ ] `docker compose logs -f daemon` — проверить логи

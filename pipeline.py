@@ -85,6 +85,16 @@ if DNS_OVER_TLS and _dot_servers_env:
     if not DNS_OVER_TLS_NAMESERVERS:
         DNS_OVER_TLS = False
 
+# WireGuard DNS: when USE_WG_DNS=1, resolve only via DNS from WG config (e.g. 10.2.0.1)
+USE_WG_DNS = os.environ.get("USE_WG_DNS", "").strip().lower() in ("1", "true", "yes")
+_wg_dns_ip = os.environ.get("WG_DNS_IP", "10.2.0.1").strip()
+_wg_dns_ip6 = os.environ.get("WG_DNS_IP6", "").strip()
+WG_DNS_NAMESERVERS: List[str] = []
+if USE_WG_DNS and _wg_dns_ip:
+    WG_DNS_NAMESERVERS = [_wg_dns_ip]
+    if _wg_dns_ip6:
+        WG_DNS_NAMESERVERS.append(_wg_dns_ip6)
+
 _LOG_LEVELS = {"DEBUG": 10, "INFO": 20, "WARNING": 30, "ERROR": 40}
 LOG_LEVEL = _LOG_LEVELS.get(os.environ.get("LOG_LEVEL", "INFO").upper(), 20)
 
@@ -172,7 +182,13 @@ async def resolve_domain(
         for attempt in range(max_retries):
             try:
                 resolver = dns.asyncresolver.Resolver()
-                if DNS_OVER_TLS_NAMESERVERS:
+                if WG_DNS_NAMESERVERS:
+                    resolver.nameservers = (
+                        random.sample(WG_DNS_NAMESERVERS, min(3, len(WG_DNS_NAMESERVERS)))
+                        if len(WG_DNS_NAMESERVERS) > 1
+                        else list(WG_DNS_NAMESERVERS)
+                    )
+                elif DNS_OVER_TLS_NAMESERVERS:
                     resolver.nameservers = random.sample(
                         DNS_OVER_TLS_NAMESERVERS, min(3, len(DNS_OVER_TLS_NAMESERVERS))
                     )

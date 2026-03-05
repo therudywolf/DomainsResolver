@@ -39,8 +39,14 @@ if [ ! -f input.txt ]; then
 fi
 
 # Сборка
-echo "[3/4] Сборка образа..."
+echo "[3/4] Сборка образов..."
 docker compose build -q
+
+# WireGuard: поднять туннель до проверки и daemon
+echo "Запуск WireGuard..."
+docker compose up -d wireguard
+echo "Ожидание поднятия туннеля (3 с)..."
+sleep 3
 
 # Проверка (первый раз)
 if [ ! -f .start_done ]; then

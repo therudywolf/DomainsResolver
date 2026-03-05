@@ -4,12 +4,37 @@
 # Проверка:  docker compose run --rm verify
 # Один прогон: docker compose run --rm run
 # Фон:       docker compose up -d daemon
+# WG проверка: ./verify_wg.sh
 
 services:
+  wireguard:
+    build:
+      context: .
+      dockerfile: Dockerfile.wg
+    image: dmtcdrk-wg:latest
+    volumes:
+      - ./wg:/etc/wireguard:ro
+    cap_add:
+      - NET_ADMIN
+    sysctls:
+      - net.ipv4.conf.all.src_valid_mark=1
+    command: ["sh", "-c", "wg-quick up /etc/wireguard/forestserver_DE-DE-578.conf && exec sleep infinity"]
+
+  verify_wg:
+    image: alpine:latest
+    network_mode: service:wireguard
+    depends_on:
+      - wireguard
+    profiles: [verify_wg]
+    command: ["sh", "-c", "echo '[1/3] DNS через WG...' && getent hosts example.com || exit 1 && echo '[2/3] Внешний IP через WG...' && wget -qO- --timeout=10 https://ifconfig.me 2>/dev/null || exit 1 && echo '' && echo '[3/3] OK'"]
+
   verify:
     build: .
     image: dmtcdrk:latest
     profiles: [verify]
+    network_mode: service:wireguard
+    depends_on:
+      - wireguard
     volumes:
       - .:/data
     working_dir: /data
@@ -23,12 +48,18 @@ services:
       - USE_DOMAIN_CACHE=0
       - CONCURRENCY_LIMIT=1
       - DELAY=1.0
+      - USE_WG_DNS=1
+      - WG_DNS_IP=10.2.0.1
+      - WG_DNS_IP6=2a07:b944::2:1
     command: ["bash", "verify_inner.sh"]
 
   run:
     build: .
     image: dmtcdrk:latest
     profiles: [run]
+    network_mode: service:wireguard
+    depends_on:
+      - wireguard
     volumes:
       - .:/data
     working_dir: /data
@@ -41,11 +72,17 @@ services:
       - DELAY=${DELAY:-1.0}
       - GIT_USER_NAME=${GIT_USER_NAME:-DMTCDRK}
       - GIT_USER_EMAIL=${GIT_USER_EMAIL:-dmtcdrk@localhost}
+      - USE_WG_DNS=1
+      - WG_DNS_IP=10.2.0.1
+      - WG_DNS_IP6=2a07:b944::2:1
     command: ["bash", "run.sh"]
 
   daemon:
     build: .
     image: dmtcdrk:latest
+    network_mode: service:wireguard
+    depends_on:
+      - wireguard
     volumes:
       - .:/data
     working_dir: /data
@@ -59,5 +96,8 @@ services:
       - DELAY=${DELAY:-1.0}
       - GIT_USER_NAME=${GIT_USER_NAME:-DMTCDRK}
       - GIT_USER_EMAIL=${GIT_USER_EMAIL:-dmtcdrk@localhost}
+      - USE_WG_DNS=1
+      - WG_DNS_IP=10.2.0.1
+      - WG_DNS_IP6=2a07:b944::2:1
     command: ["bash", "scheduler.sh"]
     restart: unless-stopped
