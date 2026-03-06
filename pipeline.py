@@ -24,7 +24,7 @@ if sys.platform == "win32":
 try:
     import dns.asyncresolver
     from dns.exception import Timeout
-    from dns.nameserver import DoTNameserver
+    from dns.nameserver import Do53Nameserver, DoTNameserver
 except ImportError:
     print("[ERROR] dnspython required: pip install dnspython", file=sys.stderr)
     sys.exit(1)
@@ -114,18 +114,20 @@ def _log(level: str, msg: str, **kwargs: str) -> None:
 
 
 def _get_resolver_nameservers() -> list:
-    """Return list of nameservers for the resolver (WG DNS, DoT, or DNS_POOL)."""
+    """Return list of dns.nameserver.Nameserver for the resolver (WG DNS, DoT, or DNS_POOL)."""
     if WG_DNS_NAMESERVERS:
-        return (
+        ips = (
             random.sample(WG_DNS_NAMESERVERS, min(3, len(WG_DNS_NAMESERVERS)))
             if len(WG_DNS_NAMESERVERS) > 1
             else list(WG_DNS_NAMESERVERS)
         )
+        return [Do53Nameserver(ip, 53) for ip in ips]
     if DNS_OVER_TLS_NAMESERVERS:
         return random.sample(
             DNS_OVER_TLS_NAMESERVERS, min(3, len(DNS_OVER_TLS_NAMESERVERS))
         )
-    return random.sample(DNS_POOL, min(3, len(DNS_POOL)))
+    pool = random.sample(DNS_POOL, min(3, len(DNS_POOL)))
+    return [Do53Nameserver(ip, 53) for ip in pool]
 
 
 def load_domain_cache(path: str) -> Dict[str, dict]:

@@ -93,25 +93,18 @@ fi
 echo "Запуск daemon..."
 docker compose up -d daemon
 
-# Сразу пуш (пустой output если нет — чтобы видеть что push работает)
-echo "Начальный push..."
-[ -f .env ] && set -a && . <(sed 's/\r$//' .env) && set +a
+# Один прогон по input.txt, чтобы output_optimized.txt и .input_hash были актуальны (и push при изменениях)
+[ -f .env ] && set -a && . <(sed 's/\r$//' .env) 2>/dev/null && set +a
+INPUT_FILE="${INPUT_FILE:-input.txt}"
 OUTPUT_FILE="${OUTPUT_FILE:-output_optimized.txt}"
 HASH_FILE="${HASH_FILE:-.input_hash}"
-INPUT_FILE="${INPUT_FILE:-input.txt}"
-if [ ! -f "$OUTPUT_FILE" ]; then
-  touch "$OUTPUT_FILE"
+echo "Первый прогон по input.txt..."
+if [ -f "$INPUT_FILE" ]; then
+  OUTPUT_FILE="$OUTPUT_FILE" HASH_FILE="$HASH_FILE" INPUT_FILE="$INPUT_FILE" \
+    docker compose --profile run run --rm run || true
+else
+  echo "      (input.txt отсутствует — пропуск)"
 fi
-if [ ! -f "$HASH_FILE" ] && [ -f "$INPUT_FILE" ]; then
-  if command -v sha256sum >/dev/null 2>&1; then
-    sha256sum "$INPUT_FILE" | cut -d' ' -f1 > "$HASH_FILE"
-  elif command -v shasum >/dev/null 2>&1; then
-    shasum -a 256 "$INPUT_FILE" | cut -d' ' -f1 > "$HASH_FILE"
-  else
-    echo "init" > "$HASH_FILE"
-  fi
-fi
-OUTPUT_FILE="$OUTPUT_FILE" HASH_FILE="$HASH_FILE" bash sync.sh
 
 echo ""
 echo "  Готово. Логи: docker compose logs -f daemon"

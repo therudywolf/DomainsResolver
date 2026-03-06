@@ -98,7 +98,8 @@ class TestGetResolverNameservers:
         pl.DNS_OVER_TLS_NAMESERVERS = []
         pl.DNS_POOL = ["8.8.8.8"]
         result = pl._get_resolver_nameservers()
-        assert result == ["10.2.0.1"]
+        assert len(result) == 1
+        assert result[0].address == "10.2.0.1" and result[0].port == 53
 
     def test_uses_wg_dns_with_ip6(self):
         import pipeline as pl
@@ -107,7 +108,7 @@ class TestGetResolverNameservers:
         pl.DNS_POOL = ["8.8.8.8"]
         result = pl._get_resolver_nameservers()
         assert len(result) == 2
-        assert set(result) == {"10.2.0.1", "2a07:b944::2:1"}
+        assert {r.address for r in result} == {"10.2.0.1", "2a07:b944::2:1"}
 
     def test_falls_back_to_dot_when_wg_empty(self):
         import pipeline as pl
@@ -126,7 +127,7 @@ class TestGetResolverNameservers:
         pl.DNS_POOL = ["8.8.8.8", "1.1.1.1"]
         result = pl._get_resolver_nameservers()
         assert len(result) == 2
-        assert set(result) == {"8.8.8.8", "1.1.1.1"}
+        assert {r.address for r in result} == {"8.8.8.8", "1.1.1.1"}
 
 
 class TestLoadDomainCache:
