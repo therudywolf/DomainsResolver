@@ -21,7 +21,7 @@ services:
       - NET_ADMIN
     sysctls:
       - net.ipv4.conf.all.src_valid_mark=1
-    command: ["sh", "-c", "CONF=\"$${WG_CONF:-forestserver_DE-DE-578.conf}\"; sed 's/\\r$$//' \"/etc/wireguard/$$CONF\" > /tmp/wg.conf && wg-quick up /tmp/wg.conf && exec sleep infinity"]
+    command: ["sh", "-c", "CONF=\"$${WG_CONF:-forestserver_DE-DE-578.conf}\"; sed 's/\\r$$//' \"/etc/wireguard/$$CONF\" > /tmp/wg.conf; grep -E '^DNS[[:space:]]*=' /tmp/wg.conf | sed 's/^DNS[[:space:]]*=[[:space:]]*//' | tr -s ' \\t' '\\n' | while read s; do [ -n \"$$s\" ] && echo \"nameserver $$s\"; done > /tmp/resolv.wg; sed '/^DNS[[:space:]]*=/d' /tmp/wg.conf > /tmp/wg-nodns.conf; wg-quick up /tmp/wg-nodns.conf; [ -s /tmp/resolv.wg ] && cp /tmp/resolv.wg /etc/resolv.conf; exec sleep infinity"]
 
   verify_wg:
     image: alpine:latest
