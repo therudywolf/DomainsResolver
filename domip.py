@@ -1,3 +1,7 @@
+"""
+DEPRECATED: Для резолва доменов используй pipeline.py (Docker + WireGuard/DoT).
+Этот скрипт оставлен для совместимости; конфиг жёстко задан (dodep.txt, DNS_POOL).
+"""
 import asyncio
 import os
 import sys

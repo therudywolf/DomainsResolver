@@ -25,18 +25,19 @@
 ```bash
 git clone https://github.com/rudywolf/DMTCDRK.git
 cd DMTCDRK
-chmod +x start.sh verify.sh
+chmod +x start.sh verify.sh verify_wg.sh deploy.sh
 ./start.sh
 ```
 
-`start.sh` сам создаёт `.env` и `input.txt` из примеров, проверяет DNS и push, запускает daemon. Заполни `GIT_PUSH_TOKEN` в `.env` и добавь домены в `input.txt`.
+`start.sh` сам создаёт `.env` и `input.txt` из примеров, поднимает WireGuard, проверяет DNS и push, запускает daemon. Заполни `GIT_PUSH_TOKEN` в `.env`, добавь домены в `input.txt`. Конфиг WG — в `wg/` (см. [DEPLOY.md](DEPLOY.md)).
 
 ### Команды Docker Compose
 
 | Команда | Режим |
 |---------|-------|
-| `./start.sh` | Всё: подготовка + проверка + daemon |
+| `./start.sh` | Всё: подготовка + WireGuard + проверка + daemon |
 | `./verify.sh` | Только проверка DNS и push |
+| `./verify_wg.sh` | Проверка WireGuard: туннель, handshake, резолв и трафик через WG |
 | `docker compose --profile run run --rm run` | Один прогон (input.txt) |
 | `docker compose up -d daemon` | Фон (production) |
 
@@ -94,8 +95,8 @@ CACHE_TTL_HOURS=24
 | `USE_DOMAIN_CACHE` | — | `1` — инкрементальный кэш (для daemon, 60–100K доменов). |
 | `RESOLVE_PER_RUN` | `5000` | Доменов за один прогон (при USE_DOMAIN_CACHE). |
 | `CACHE_TTL_HOURS` | `24` | Через сколько часов перепроверять домен. |
-| `CONCURRENCY_LIMIT` | `2` | Сколько DNS-запросов параллельно. |
-| `DELAY` | `0.5` | Пауза между запросами (сек). |
+| `CONCURRENCY_LIMIT` | `1` | Сколько DNS-запросов параллельно. |
+| `DELAY` | `1.0` | Пауза между запросами (сек). |
 | `GIT_BRANCH` | текущая ветка | В какую ветку пушить. |
 | `FORCE_RUN` | — | `1` — игнорировать хеш, всегда гонять пайплайн. |
 | `KEEP_LAST_OUTPUT_IF_EMPTY` | — | `1` — при пустом результате не затирать старый output. |
@@ -104,6 +105,10 @@ CACHE_TTL_HOURS=24
 | `FILTER_RESERVED` | `1` | `1` — исключать из вывода зарезервированные/недопустимые адреса (0.0.0.0/8, loopback, multicast, broadcast). |
 | `FILTER_PRIVATE` | `0` | `1` — дополнительно исключать приватные диапазоны (10/8, 172.16/12, 192.168/16). |
 | `COLLAPSE_IPS_TO_SUBNETS` | `1` | `1` — объединять одиночные IP в подсети (меньше строк, больше CIDR). `0` — оставлять каждый IP отдельной строкой. |
+| `USE_WG_DNS` | `1` | `1` — резолв только через DNS из конфига WireGuard (см. ниже). Иначе DoT или DNS_POOL. |
+| `WG_DNS_IP` | `10.2.0.1` | IPv4 DNS из конфига WG. |
+| `WG_DNS_IP6` | — | IPv6 DNS из конфига WG (опционально). |
+| `WG_CONF` | `forestserver_DE-DE-578.conf` | Имя файла конфига в каталоге `wg/`. |
 
 Полный список и тонкости — в [.env.example](.env.example). Развёртывание на сервере по шагам — [DEPLOY.md](DEPLOY.md).
 
@@ -117,6 +122,10 @@ DNS_OVER_TLS_SERVERS=45.90.28.61:твой-профиль.dns.nextdns.io,45.90.30
 ```
 
 Формат: через запятую пары `IP:hostname` (hostname — для проверки TLS). Без DoT используется обычный DNS из `DNS_POOL`.
+
+### WireGuard
+
+При использовании Docker по умолчанию резолв идёт через WireGuard: конфиг в `wg/` (например `wg/forestserver_DE-DE-578.conf`). В `.env` задаются `USE_WG_DNS=1`, `WG_DNS_IP`, `WG_DNS_IP6`, `WG_CONF`. Проверка туннеля и DNS: `./verify_wg.sh`. Подробнее — [DEPLOY.md](DEPLOY.md).
 
 ---
 
@@ -159,7 +168,10 @@ pytest tests/ -v
 - `script.py` — отдельный консолидатор по директории (использует ip_utils).
 - `run.sh` — проверка хеша, запуск пайплайна, обновление `.input_hash`, вызов sync.
 - `scheduler.sh` — цикл для daemon: запуск `run.sh` каждые N минут.
-- `start.sh` — единая точка входа: подготовка + проверка + daemon.
+- `start.sh` — единая точка входа: подготовка + WireGuard + проверка + daemon.
 - `deploy.sh` — алиас для `start.sh`.
 - `verify.sh` — проверка DNS и push через Docker Compose.
+- `verify_wg.sh` — проверка WireGuard (туннель, handshake, резолв через WG).
+- `Dockerfile.wg` — образ с WireGuard для резолва через туннель.
 - `sync.sh` — git add/commit/push при изменении output/hash; откат origin после пуша.
+- `domip.py` — устаревший скрипт резолва (для резолва доменов используй pipeline.py).
