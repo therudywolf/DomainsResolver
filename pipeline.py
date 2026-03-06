@@ -23,6 +23,7 @@ if sys.platform == "win32":
 
 try:
     import dns.asyncresolver
+    import dns.resolver as dns_resolver_sync
     from dns.exception import Timeout
     from dns.nameserver import Do53Nameserver, DoTNameserver
 except ImportError:
@@ -143,6 +144,14 @@ def _ensure_nameserver_instances(nameservers: list) -> list:
     return out
 
 
+def _sync_resolve(domain: str, rdtype: str, nameservers: list, timeout: float):
+    """Blocking resolve using sync resolver (avoids asyncresolver nameserver quirks in some dnspython versions)."""
+    r = dns_resolver_sync.Resolver()
+    r.nameservers = nameservers
+    r.lifetime = timeout
+    return r.resolve(domain, rdtype)
+
+
 def load_domain_cache(path: str) -> Dict[str, dict]:
     """Load domain cache: {domain: {ips: [...], ts: unix}}."""
     if not os.path.exists(path):
@@ -218,17 +227,20 @@ async def resolve_domain(
     async with sem:
         for attempt in range(max_retries):
             try:
-                resolver = dns.asyncresolver.Resolver()
-                resolver.nameservers = _ensure_nameserver_instances(_get_resolver_nameservers())
-                resolver.lifetime = resolver_timeout
-                answers = await resolver.resolve(clean_domain, "A")
+                nameservers = _ensure_nameserver_instances(_get_resolver_nameservers())
+                loop = asyncio.get_event_loop()
+                answers = await loop.run_in_executor(
+                    None, lambda d=clean_domain, ns=nameservers, to=resolver_timeout: _sync_resolve(d, "A", ns, to)
+                )
                 addrs = [rdata.address for rdata in answers]
                 for ip in addrs:
                     ip_set.add(ip)
                 all_ips = list(addrs)
                 if resolve_aaaa:
                     try:
-                        aaaa = await resolver.resolve(clean_domain, "AAAA")
+                        aaaa = await loop.run_in_executor(
+                            None, lambda d=clean_domain, ns=nameservers, to=resolver_timeout: _sync_resolve(d, "AAAA", ns, to)
+                        )
                         for rdata in aaaa:
                             ip_set.add(rdata.address)
                             all_ips.append(rdata.address)
