@@ -6,7 +6,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     iproute2 \
     iptables \
     procps \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && sed '/src_valid_mark/s/$/ || true/' /usr/bin/wg-quick > /usr/local/bin/wg-quick \
+    && chmod +x /usr/local/bin/wg-quick
 
 # Config is mounted at runtime; default path for CMD
 ENV WG_CONF=/etc/wireguard/forestserver_DE-DE-578.conf
