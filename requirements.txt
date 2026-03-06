@@ -1,1 +1,1 @@
-dnspython>=2.7.0
+# DMTCDRK — no extra deps; DNS = system (/etc/resolv.conf from WG config in container)

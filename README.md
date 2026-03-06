@@ -106,27 +106,13 @@ CACHE_TTL_HOURS=24
 | `FILTER_RESERVED` | `1` | `1` — исключать из вывода зарезервированные/недопустимые адреса (0.0.0.0/8, loopback, multicast, broadcast). |
 | `FILTER_PRIVATE` | `0` | `1` — дополнительно исключать приватные диапазоны (10/8, 172.16/12, 192.168/16). |
 | `COLLAPSE_IPS_TO_SUBNETS` | `1` | `1` — объединять одиночные IP в подсети (меньше строк, больше CIDR). `0` — оставлять каждый IP отдельной строкой. |
-| `USE_WG_DNS` | `1` | `1` — резолв только через DNS из конфига WireGuard (см. ниже). Иначе DoT или DNS_POOL. |
-| `WG_DNS_IP` | `10.2.0.1` | IPv4 DNS из конфига WG. |
-| `WG_DNS_IP6` | — | IPv6 DNS из конфига WG (опционально). |
-| `WG_CONF` | `forestserver_DE-DE-578.conf` | Имя файла конфига в каталоге `wg/`. |
+| `WG_CONF` | `forestserver_DE-DE-578.conf` | Имя файла конфига WG в каталоге `wg/`. DNS для резолва = из этого конфига (/etc/resolv.conf в контейнере). |
 
 Полный список и тонкости — в [.env.example](.env.example). Развёртывание на сервере по шагам — [DEPLOY.md](DEPLOY.md).
 
-### DNS over TLS (DoT)
-
-Чтобы резолвить домены через зашифрованный DoT (например NextDNS), в `.env` добавь:
-
-```bash
-DNS_OVER_TLS=1
-DNS_OVER_TLS_SERVERS=45.90.28.61:твой-профиль.dns.nextdns.io,45.90.30.61:твой-профиль.dns.nextdns.io
-```
-
-Формат: через запятую пары `IP:hostname` (hostname — для проверки TLS). Без DoT используется обычный DNS из `DNS_POOL`.
-
 ### WireGuard
 
-При использовании Docker по умолчанию резолв идёт через WireGuard: конфиг в `wg/` (например `wg/forestserver_DE-DE-578.conf`). В `.env` задаются `USE_WG_DNS=1`, `WG_DNS_IP`, `WG_DNS_IP6`, `WG_CONF`. Проверка туннеля и DNS: `./verify_wg.sh`. Подробнее — [DEPLOY.md](DEPLOY.md).
+В Docker всё работает в одном контейнере под WireGuard: поднимается WG, DNS из конфига пишется в `/etc/resolv.conf`, пайплайн резолвит через системный DNS (= твой DNS). В `.env` нужен только `WG_CONF` (файл в `wg/`). Проверка туннеля и DNS: `./verify_wg.sh`. Подробнее — [DEPLOY.md](DEPLOY.md).
 
 ---
 
