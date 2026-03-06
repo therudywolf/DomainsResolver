@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # DMTCDRK — единая точка входа. Debian 12, только Docker.
-# ./start.sh — подготовка + проверка + запуск daemon
+# ./start.sh — подготовка + WireGuard + проверка + daemon
 
 set -e
 cd "$(dirname "$0")"
@@ -25,7 +25,7 @@ fi
 if [ ! -f .env ]; then
   echo "[1/4] Создаю .env из .env.example..."
   cp .env.example .env
-  echo "      Заполни GIT_PUSH_TOKEN и DNS_OVER_TLS_SERVERS в .env"
+  echo "      Заполни GIT_PUSH_TOKEN в .env. Конфиг WG: wg/forestserver_DE-DE-578.conf"
   echo ""
 fi
 [ -f .env ] && sed -i 's/\r$//' .env 2>/dev/null || true
@@ -42,11 +42,32 @@ fi
 echo "[3/4] Сборка образов..."
 docker compose build -q
 
-# WireGuard: поднять туннель до проверки и daemon
-echo "Запуск WireGuard..."
+# WireGuard: проверка конфига и подъём туннеля
+[ -f .env ] && set -a && . ./.env 2>/dev/null && set +a || true
+WG_CONF="${WG_CONF:-forestserver_DE-DE-578.conf}"
+WG_PATH=""
+if [ -f "wg/${WG_CONF}" ]; then
+  WG_PATH="wg/${WG_CONF}"
+elif [ -f "wg/${WG_CONF%.conf}.conf" ]; then
+  WG_PATH="wg/${WG_CONF%.conf}.conf"
+  WG_CONF="${WG_CONF%.conf}.conf"
+else
+  echo "[ERROR] Конфиг WG не найден: wg/${WG_CONF} или wg/forestserver_DE-DE-578.conf"
+  echo "        Положи конфиг в wg/ и при необходимости задай WG_CONF в .env."
+  exit 1
+fi
+echo "Запуск WireGuard (${WG_PATH})..."
 docker compose up -d wireguard
-echo "Ожидание поднятия туннеля (3 с)..."
-sleep 3
+echo "Ожидание handshake (до 15 с)..."
+for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+  if docker compose exec -T wireguard wg show 2>/dev/null | grep -q "latest handshake"; then
+    echo "Туннель поднят."
+    break
+  fi
+  [ "$i" -eq 15 ] && echo "[WARN] Handshake не получен за 15 с. Проверь: ./verify_wg.sh"
+  sleep 1
+done
+echo ""
 
 # Проверка (первый раз)
 if [ ! -f .start_done ]; then

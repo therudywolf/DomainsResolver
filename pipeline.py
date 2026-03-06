@@ -106,6 +106,21 @@ def _log(level: str, msg: str, **kwargs: str) -> None:
         print(f"[{level}] {msg}" + (" " + extra if extra else ""))
 
 
+def _get_resolver_nameservers() -> list:
+    """Return list of nameservers for the resolver (WG DNS, DoT, or DNS_POOL)."""
+    if WG_DNS_NAMESERVERS:
+        return (
+            random.sample(WG_DNS_NAMESERVERS, min(3, len(WG_DNS_NAMESERVERS)))
+            if len(WG_DNS_NAMESERVERS) > 1
+            else list(WG_DNS_NAMESERVERS)
+        )
+    if DNS_OVER_TLS_NAMESERVERS:
+        return random.sample(
+            DNS_OVER_TLS_NAMESERVERS, min(3, len(DNS_OVER_TLS_NAMESERVERS))
+        )
+    return random.sample(DNS_POOL, min(3, len(DNS_POOL)))
+
+
 def load_domain_cache(path: str) -> Dict[str, dict]:
     """Load domain cache: {domain: {ips: [...], ts: unix}}."""
     if not os.path.exists(path):
@@ -182,18 +197,7 @@ async def resolve_domain(
         for attempt in range(max_retries):
             try:
                 resolver = dns.asyncresolver.Resolver()
-                if WG_DNS_NAMESERVERS:
-                    resolver.nameservers = (
-                        random.sample(WG_DNS_NAMESERVERS, min(3, len(WG_DNS_NAMESERVERS)))
-                        if len(WG_DNS_NAMESERVERS) > 1
-                        else list(WG_DNS_NAMESERVERS)
-                    )
-                elif DNS_OVER_TLS_NAMESERVERS:
-                    resolver.nameservers = random.sample(
-                        DNS_OVER_TLS_NAMESERVERS, min(3, len(DNS_OVER_TLS_NAMESERVERS))
-                    )
-                else:
-                    resolver.nameservers = random.sample(DNS_POOL, min(3, len(DNS_POOL)))
+                resolver.nameservers = _get_resolver_nameservers()
                 resolver.lifetime = resolver_timeout
                 answers = await resolver.resolve(clean_domain, "A")
                 addrs = [rdata.address for rdata in answers]
@@ -279,6 +283,13 @@ def main_sync() -> None:
     if dry_run:
         _log("INFO", "DRY-RUN: Skipping resolve and write.")
         return
+
+    if WG_DNS_NAMESERVERS:
+        _log("INFO", f"DNS: WireGuard ({', '.join(WG_DNS_NAMESERVERS)})")
+    elif DNS_OVER_TLS_NAMESERVERS:
+        _log("INFO", "DNS: DoT")
+    else:
+        _log("INFO", f"DNS: pool ({len(DNS_POOL)} servers)")
 
     resolved_ips: Set[str] = set()
     resolve_stats: dict = {"ok": 0, "fail": 0}

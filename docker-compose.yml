@@ -12,13 +12,16 @@ services:
       context: .
       dockerfile: Dockerfile.wg
     image: dmtcdrk-wg:latest
+    env_file: .env
+    environment:
+      - WG_CONF=${WG_CONF:-forestserver_DE-DE-578.conf}
     volumes:
       - ./wg:/etc/wireguard:ro
     cap_add:
       - NET_ADMIN
     sysctls:
       - net.ipv4.conf.all.src_valid_mark=1
-    command: ["sh", "-c", "wg-quick up /etc/wireguard/forestserver_DE-DE-578.conf && exec sleep infinity"]
+    command: ["sh", "-c", "wg-quick up \"/etc/wireguard/${WG_CONF:-forestserver_DE-DE-578.conf}\" && exec sleep infinity"]
 
   verify_wg:
     image: alpine:latest
@@ -49,8 +52,6 @@ services:
       - CONCURRENCY_LIMIT=1
       - DELAY=1.0
       - USE_WG_DNS=1
-      - WG_DNS_IP=10.2.0.1
-      - WG_DNS_IP6=2a07:b944::2:1
     command: ["bash", "verify_inner.sh"]
 
   run:
@@ -73,8 +74,6 @@ services:
       - GIT_USER_NAME=${GIT_USER_NAME:-DMTCDRK}
       - GIT_USER_EMAIL=${GIT_USER_EMAIL:-dmtcdrk@localhost}
       - USE_WG_DNS=1
-      - WG_DNS_IP=10.2.0.1
-      - WG_DNS_IP6=2a07:b944::2:1
     command: ["bash", "run.sh"]
 
   daemon:
@@ -97,7 +96,5 @@ services:
       - GIT_USER_NAME=${GIT_USER_NAME:-DMTCDRK}
       - GIT_USER_EMAIL=${GIT_USER_EMAIL:-dmtcdrk@localhost}
       - USE_WG_DNS=1
-      - WG_DNS_IP=10.2.0.1
-      - WG_DNS_IP6=2a07:b944::2:1
     command: ["bash", "scheduler.sh"]
     restart: unless-stopped
