@@ -25,7 +25,7 @@
 ```bash
 git clone https://github.com/rudywolf/DMTCDRK.git
 cd DMTCDRK
-chmod +x start.sh verify.sh verify_wg.sh deploy.sh
+chmod +x start.sh verify.sh verify_wg.sh deploy.sh clear_cache.sh
 ./start.sh
 ```
 
@@ -38,6 +38,7 @@ chmod +x start.sh verify.sh verify_wg.sh deploy.sh
 | `./start.sh` | Всё: подготовка + WireGuard + проверка + daemon |
 | `./verify.sh` | Только проверка DNS и push |
 | `./verify_wg.sh` | Проверка WireGuard: туннель, handshake, резолв и трафик через WG |
+| `./clear_cache.sh` | Полная очистка кэша доменов и служебных флагов (.input_hash, .start_done и др.) |
 | `docker compose --profile run run --rm run` | Один прогон (input.txt) |
 | `docker compose up -d daemon` | Фон (production) |
 
@@ -172,6 +173,7 @@ pytest tests/ -v
 - `deploy.sh` — алиас для `start.sh`.
 - `verify.sh` — проверка DNS и push через Docker Compose.
 - `verify_wg.sh` — проверка WireGuard (туннель, handshake, резолв через WG).
+- `clear_cache.sh` — полная очистка кэша (domain_cache.json, .input_hash, .verify_hash, .start_done).
 - `Dockerfile.wg` — образ с WireGuard для резолва через туннель.
 - `sync.sh` — git add/commit/push при изменении output/hash; откат origin после пуша.
 - `domip.py` — устаревший скрипт резолва (для резолва доменов используй pipeline.py).

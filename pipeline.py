@@ -90,10 +90,17 @@ USE_WG_DNS = os.environ.get("USE_WG_DNS", "").strip().lower() in ("1", "true", "
 _wg_dns_ip = os.environ.get("WG_DNS_IP", "10.2.0.1").strip()
 _wg_dns_ip6 = os.environ.get("WG_DNS_IP6", "").strip()
 WG_DNS_NAMESERVERS: List[str] = []
-if USE_WG_DNS and _wg_dns_ip:
-    WG_DNS_NAMESERVERS = [_wg_dns_ip]
-    if _wg_dns_ip6:
-        WG_DNS_NAMESERVERS.append(_wg_dns_ip6)
+if USE_WG_DNS:
+    if _wg_dns_ip:
+        WG_DNS_NAMESERVERS = [_wg_dns_ip]
+        if _wg_dns_ip6:
+            WG_DNS_NAMESERVERS.append(_wg_dns_ip6)
+    if not WG_DNS_NAMESERVERS:
+        print(
+            "[ERROR] USE_WG_DNS=1 but WG_DNS_IP is empty. Set WG_DNS_IP (and optionally WG_DNS_IP6) in .env.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
 _LOG_LEVELS = {"DEBUG": 10, "INFO": 20, "WARNING": 30, "ERROR": 40}
 LOG_LEVEL = _LOG_LEVELS.get(os.environ.get("LOG_LEVEL", "INFO").upper(), 20)
@@ -239,7 +246,7 @@ async def resolve_domain(
                 backoff_state["consecutive_fail"] = backoff_state.get("consecutive_fail", 0) + 1
                 if backoff_state["consecutive_fail"] >= 5:
                     backoff_state["backoff_remaining"] = backoff_state.get("backoff_remaining", 0) + 10
-                print(f"[-] {raw_domain} -> FAIL ({type(e).__name__})")
+                print(f"[-] {raw_domain} -> FAIL ({type(e).__name__}: {e})")
                 resolve_stats["fail"] = resolve_stats.get("fail", 0) + 1
                 break
 
@@ -285,7 +292,7 @@ def main_sync() -> None:
         return
 
     if WG_DNS_NAMESERVERS:
-        _log("INFO", f"DNS: WireGuard ({', '.join(WG_DNS_NAMESERVERS)})")
+        _log("INFO", f"DNS: WireGuard only ({', '.join(WG_DNS_NAMESERVERS)}) — all queries via tunnel")
     elif DNS_OVER_TLS_NAMESERVERS:
         _log("INFO", "DNS: DoT")
     else:
@@ -321,7 +328,7 @@ def main_sync() -> None:
             if ent:
                 for ip in ent.get("ips", []):
                     resolved_ips.add(ip)
-        _log("INFO", f"Resolved {len(resolved_ips)} unique IPs (from cache + {len(to_resolve)} fresh)")
+        _log("INFO", f"Resolved {len(resolved_ips)} unique IPs (cached + {len(to_resolve)} attempted this run: ok={resolve_stats.get('ok', 0)} fail={resolve_stats.get('fail', 0)})")
     elif domains:
         _log("INFO", f"Starting DNS resolution ({len(domains)} domains)...")
         resolved_ips, resolve_stats = asyncio.run(resolve_all(domains))
