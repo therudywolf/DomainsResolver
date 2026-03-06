@@ -93,22 +93,23 @@ class TestGetResolverNameservers:
     """Tests for _get_resolver_nameservers() with patched module-level nameserver lists."""
 
     def test_uses_wg_dns_when_set(self):
+        """When WG_DNS_NAMESERVERS is set, _get_resolver_nameservers still returns DNS_POOL (WG path is in resolve_domain)."""
         import pipeline as pl
         pl.WG_DNS_NAMESERVERS = ["10.2.0.1"]
         pl.DNS_OVER_TLS_NAMESERVERS = []
         pl.DNS_POOL = ["8.8.8.8"]
         result = pl._get_resolver_nameservers()
-        assert len(result) == 1
-        assert result[0].address == "10.2.0.1" and result[0].port == 53
+        assert result == ["8.8.8.8"]
 
     def test_uses_wg_dns_with_ip6(self):
+        """WG is not in _get_resolver_nameservers; falls back to DNS_POOL."""
         import pipeline as pl
         pl.WG_DNS_NAMESERVERS = ["10.2.0.1", "2a07:b944::2:1"]
         pl.DNS_OVER_TLS_NAMESERVERS = []
-        pl.DNS_POOL = ["8.8.8.8"]
+        pl.DNS_POOL = ["8.8.8.8", "1.1.1.1"]
         result = pl._get_resolver_nameservers()
         assert len(result) == 2
-        assert {r.address for r in result} == {"10.2.0.1", "2a07:b944::2:1"}
+        assert set(result) == {"8.8.8.8", "1.1.1.1"}
 
     def test_falls_back_to_dot_when_wg_empty(self):
         import pipeline as pl
@@ -127,7 +128,7 @@ class TestGetResolverNameservers:
         pl.DNS_POOL = ["8.8.8.8", "1.1.1.1"]
         result = pl._get_resolver_nameservers()
         assert len(result) == 2
-        assert {r.address for r in result} == {"8.8.8.8", "1.1.1.1"}
+        assert set(result) == {"8.8.8.8", "1.1.1.1"}
 
 
 class TestLoadDomainCache:

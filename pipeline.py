@@ -86,22 +86,20 @@ if DNS_OVER_TLS and _dot_servers_env:
     if not DNS_OVER_TLS_NAMESERVERS:
         DNS_OVER_TLS = False
 
-# WireGuard DNS: when USE_WG_DNS=1, resolve only via DNS from WG config (e.g. 10.2.0.1)
-USE_WG_DNS = os.environ.get("USE_WG_DNS", "").strip().lower() in ("1", "true", "yes")
+# WireGuard DNS: единственный режим — резолв только через DNS из конфига WG
 _wg_dns_ip = os.environ.get("WG_DNS_IP", "10.2.0.1").strip()
 _wg_dns_ip6 = os.environ.get("WG_DNS_IP6", "").strip()
 WG_DNS_NAMESERVERS: List[str] = []
-if USE_WG_DNS:
-    if _wg_dns_ip:
-        WG_DNS_NAMESERVERS = [_wg_dns_ip]
-        if _wg_dns_ip6:
-            WG_DNS_NAMESERVERS.append(_wg_dns_ip6)
-    if not WG_DNS_NAMESERVERS:
-        print(
-            "[ERROR] USE_WG_DNS=1 but WG_DNS_IP is empty. Set WG_DNS_IP (and optionally WG_DNS_IP6) in .env.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
+if _wg_dns_ip:
+    WG_DNS_NAMESERVERS = [_wg_dns_ip]
+    if _wg_dns_ip6:
+        WG_DNS_NAMESERVERS.append(_wg_dns_ip6)
+if not WG_DNS_NAMESERVERS:
+    print(
+        "[ERROR] WG_DNS_IP required. Set WG_DNS_IP (and optionally WG_DNS_IP6) in .env.",
+        file=sys.stderr,
+    )
+    sys.exit(1)
 
 _LOG_LEVELS = {"DEBUG": 10, "INFO": 20, "WARNING": 30, "ERROR": 40}
 LOG_LEVEL = _LOG_LEVELS.get(os.environ.get("LOG_LEVEL", "INFO").upper(), 20)
@@ -115,39 +113,18 @@ def _log(level: str, msg: str, **kwargs: str) -> None:
 
 
 def _get_resolver_nameservers() -> list:
-    """Return list of dns.nameserver.Nameserver for the resolver (WG DNS, DoT, or DNS_POOL)."""
-    if WG_DNS_NAMESERVERS:
-        ips = (
-            random.sample(WG_DNS_NAMESERVERS, min(3, len(WG_DNS_NAMESERVERS)))
-            if len(WG_DNS_NAMESERVERS) > 1
-            else list(WG_DNS_NAMESERVERS)
-        )
-        return [Do53Nameserver(ip, 53) for ip in ips]
+    """Return nameservers (DoT or DNS_POOL). Used only by tests; production always uses WG via _wg_sync_resolve."""
     if DNS_OVER_TLS_NAMESERVERS:
         return random.sample(
             DNS_OVER_TLS_NAMESERVERS, min(3, len(DNS_OVER_TLS_NAMESERVERS))
         )
-    pool = random.sample(DNS_POOL, min(3, len(DNS_POOL)))
-    return [Do53Nameserver(ip, 53) for ip in pool]
+    return random.sample(DNS_POOL, min(3, len(DNS_POOL)))
 
 
-def _ensure_nameserver_instances(nameservers: list) -> list:
-    """Ensure resolver gets dns.nameserver.Nameserver instances (dnspython 2.8+ rejects plain IP strings)."""
-    if not nameservers:
-        return nameservers
-    out = []
-    for ns in nameservers:
-        if isinstance(ns, str):
-            out.append(Do53Nameserver(ns, 53))
-        else:
-            out.append(ns)
-    return out
-
-
-def _sync_resolve(domain: str, rdtype: str, nameservers: list, timeout: float):
-    """Blocking resolve using sync resolver (avoids asyncresolver nameserver quirks in some dnspython versions)."""
+def _wg_sync_resolve(domain: str, rdtype: str, timeout: float):
+    """Resolve via WG DNS using sync resolver + Do53Nameserver."""
     r = dns_resolver_sync.Resolver()
-    r.nameservers = nameservers
+    r.nameservers = [Do53Nameserver(ip, 53) for ip in WG_DNS_NAMESERVERS]
     r.lifetime = timeout
     return r.resolve(domain, rdtype)
 
@@ -227,10 +204,9 @@ async def resolve_domain(
     async with sem:
         for attempt in range(max_retries):
             try:
-                nameservers = _ensure_nameserver_instances(_get_resolver_nameservers())
                 loop = asyncio.get_event_loop()
                 answers = await loop.run_in_executor(
-                    None, lambda d=clean_domain, ns=nameservers, to=resolver_timeout: _sync_resolve(d, "A", ns, to)
+                    None, lambda d=clean_domain, to=resolver_timeout: _wg_sync_resolve(d, "A", to)
                 )
                 addrs = [rdata.address for rdata in answers]
                 for ip in addrs:
@@ -239,7 +215,7 @@ async def resolve_domain(
                 if resolve_aaaa:
                     try:
                         aaaa = await loop.run_in_executor(
-                            None, lambda d=clean_domain, ns=nameservers, to=resolver_timeout: _sync_resolve(d, "AAAA", ns, to)
+                            None, lambda d=clean_domain, to=resolver_timeout: _wg_sync_resolve(d, "AAAA", to)
                         )
                         for rdata in aaaa:
                             ip_set.add(rdata.address)
@@ -320,10 +296,6 @@ def main_sync() -> None:
 
     if WG_DNS_NAMESERVERS:
         _log("INFO", f"DNS: WireGuard only ({', '.join(WG_DNS_NAMESERVERS)}) — all queries via tunnel")
-    elif DNS_OVER_TLS_NAMESERVERS:
-        _log("INFO", "DNS: DoT")
-    else:
-        _log("INFO", f"DNS: pool ({len(DNS_POOL)} servers)")
 
     resolved_ips: Set[str] = set()
     resolve_stats: dict = {"ok": 0, "fail": 0}
