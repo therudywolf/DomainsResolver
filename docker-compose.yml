@@ -21,7 +21,7 @@ services:
       - NET_ADMIN
     sysctls:
       - net.ipv4.conf.all.src_valid_mark=1
-    command: ["sh", "-c", "wg-quick up \"/etc/wireguard/${WG_CONF:-forestserver_DE-DE-578.conf}\" && exec sleep infinity"]
+    command: ["sh", "-c", "CONF=\"$${WG_CONF:-forestserver_DE-DE-578.conf}\"; sed 's/\\r$$//' \"/etc/wireguard/$$CONF\" > /tmp/wg.conf && wg-quick up /tmp/wg.conf && exec sleep infinity"]
 
   verify_wg:
     image: alpine:latest
