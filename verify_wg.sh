@@ -21,13 +21,28 @@ fi
 if ! docker compose ps wireguard 2>/dev/null | grep -q "Up"; then
   echo "[*] Запуск WireGuard..."
   docker compose up -d wireguard
+  echo "[*] Ждём старта контейнера (2 с)..."
+  sleep 2
+  if ! docker compose ps wireguard 2>/dev/null | grep -q "Up"; then
+    echo "[ERROR] Контейнер wireguard не запущен (возможно, упал при старте)."
+    echo "[*] Логи:"
+    docker compose logs --tail=50 wireguard 2>/dev/null || true
+    echo ""
+    echo "Подсказка: запускай без sudo — ./verify_wg.sh (если пользователь в группе docker)."
+    exit 1
+  fi
   echo "[*] Ожидание handshake (до 15 с)..."
   for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
     if docker compose exec -T wireguard wg show 2>/dev/null | grep -q "latest handshake"; then
       echo "[*] Туннель поднят."
       break
     fi
-    [ "$i" -eq 15 ] && echo "[ERROR] Handshake не получен за 15 с." && exit 1
+    if [ "$i" -eq 15 ]; then
+      echo "[ERROR] Handshake не получен за 15 с."
+      echo "[*] Логи контейнера wireguard:"
+      docker compose logs --tail=30 wireguard 2>/dev/null || true
+      exit 1
+    fi
     sleep 1
   done
   echo ""
