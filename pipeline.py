@@ -130,6 +130,19 @@ def _get_resolver_nameservers() -> list:
     return [Do53Nameserver(ip, 53) for ip in pool]
 
 
+def _ensure_nameserver_instances(nameservers: list) -> list:
+    """Ensure resolver gets dns.nameserver.Nameserver instances (dnspython 2.8+ rejects plain IP strings)."""
+    if not nameservers:
+        return nameservers
+    out = []
+    for ns in nameservers:
+        if isinstance(ns, str):
+            out.append(Do53Nameserver(ns, 53))
+        else:
+            out.append(ns)
+    return out
+
+
 def load_domain_cache(path: str) -> Dict[str, dict]:
     """Load domain cache: {domain: {ips: [...], ts: unix}}."""
     if not os.path.exists(path):
@@ -206,7 +219,7 @@ async def resolve_domain(
         for attempt in range(max_retries):
             try:
                 resolver = dns.asyncresolver.Resolver()
-                resolver.nameservers = _get_resolver_nameservers()
+                resolver.nameservers = _ensure_nameserver_instances(_get_resolver_nameservers())
                 resolver.lifetime = resolver_timeout
                 answers = await resolver.resolve(clean_domain, "A")
                 addrs = [rdata.address for rdata in answers]
