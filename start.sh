@@ -38,6 +38,13 @@ if [ ! -f input.txt ]; then
   echo ""
 fi
 
+# verify_input.txt (для первой проверки)
+if [ ! -f verify_input.txt ]; then
+  echo "      Создаю verify_input.txt для проверки..."
+  { echo "# verify"; echo "example.com"; echo "github.com"; } > verify_input.txt
+  echo ""
+fi
+
 # Сборка
 echo "[3/4] Сборка образов..."
 docker compose build -q
