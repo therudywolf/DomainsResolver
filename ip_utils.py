@@ -88,24 +88,21 @@ def optimize_list(
     filter_reserved: bool = True,
     filter_private: bool = False,
     collapse_ips: bool = True,
-    quiet: bool = False,
 ) -> List[str]:
     """
     Validate, deduplicate, aggregate subnets, filter IPs covered by networks,
     sort. Optionally filter reserved/invalid addresses and collapse single IPs into subnets.
     Returns sorted list of "ip" or "cidr/mask" strings.
-    quiet=True suppresses progress prints (for tests).
     """
     networks: set = set()
     ips: set = set()
     invalid = 0
     reserved_filtered = 0
 
-    if not quiet:
-        print("[PARSE] Валидация и разбор...")
+    print("[PARSE] Валидация и разбор...")
     total = len(raw_entries)
     for idx, e in enumerate(raw_entries, 1):
-        if not quiet and (idx % 5000 == 0 or idx == total):
+        if idx % 5000 == 0 or idx == total:
             print(f"\r  Обработано {idx}/{total}", end="", flush=True)
         parsed = parse_entry(e)
         if parsed is None:
@@ -118,42 +115,35 @@ def optimize_list(
             networks.add(parsed)
         else:
             ips.add(parsed)
-    if not quiet:
-        print(f"\n[INFO] Отброшено невалидных: {invalid} | зарезервированных: {reserved_filtered}")
-        print(f"[INFO] Подсетей: {len(networks)} | Отдельных IP: {len(ips)}")
+    print(f"\n[INFO] Отброшено невалидных: {invalid} | зарезервированных: {reserved_filtered}")
+    print(f"[INFO] Подсетей: {len(networks)} | Отдельных IP: {len(ips)}")
 
-    if not quiet:
-        print("[OPTIMIZE] Агрегация подсетей...")
+    print("[OPTIMIZE] Агрегация подсетей...")
     sorted_nets = sorted(networks, key=lambda n: (n.network_address, -n.prefixlen))
     unique_nets: List = []
     for net in sorted_nets:
         if not any(net.subnet_of(u) for u in unique_nets):
             unique_nets.append(net)
-    if not quiet:
-        print(f"[INFO] Уникальных подсетей после агрегации: {len(unique_nets)}")
+    print(f"[INFO] Уникальных подсетей после агрегации: {len(unique_nets)}")
 
-    if not quiet:
-        print("[FILTER] Фильтрация IP по подсетям...")
+    print("[FILTER] Фильтрация IP по подсетям...")
     filtered_ips: List = []
     total_ips = len(ips)
     for idx, ip in enumerate(ips, 1):
-        if not quiet and (idx % 5000 == 0 or idx == total_ips):
+        if idx % 5000 == 0 or idx == total_ips:
             print(f"\r  Проверено IP {idx}/{total_ips}", end="", flush=True)
         if not any(ip in net for net in unique_nets):
             filtered_ips.append(ip)
-    if not quiet:
-        print(f"\n[INFO] IP вне подсетей: {len(filtered_ips)}")
+    print(f"\n[INFO] IP вне подсетей: {len(filtered_ips)}")
 
     if collapse_ips and filtered_ips:
-        if not quiet:
-            print("[COLLAPSE] Объединение IP в подсети...")
+        print("[COLLAPSE] Объединение IP в подсети...")
         all_nets: List[IPv4Network] = list(unique_nets) + [
             ip_network(str(ip) + "/32") for ip in filtered_ips
         ]
         collapsed = list(collapse_addresses(all_nets))
         result = [str(n) for n in collapsed]
-        if not quiet:
-            print(f"[INFO] После объединения: {len(result)} записей")
+        print(f"[INFO] После объединения: {len(result)} записей")
     else:
         result = [str(n) for n in unique_nets] + [str(ip) for ip in filtered_ips]
 

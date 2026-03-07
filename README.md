@@ -25,20 +25,18 @@
 ```bash
 git clone https://github.com/rudywolf/DMTCDRK.git
 cd DMTCDRK
-chmod +x start.sh verify.sh verify_wg.sh deploy.sh clear_cache.sh
+chmod +x start.sh verify.sh
 ./start.sh
 ```
 
-`start.sh` сам создаёт `.env` и `input.txt` из примеров, поднимает WireGuard, проверяет DNS и push, запускает daemon. Заполни `GIT_PUSH_TOKEN` в `.env`, добавь домены в `input.txt`. Конфиг WG — в `wg/` (см. [DEPLOY.md](DEPLOY.md)).
+`start.sh` сам создаёт `.env` и `input.txt` из примеров, проверяет DNS и push, запускает daemon. Заполни `GIT_PUSH_TOKEN` в `.env` и добавь домены в `input.txt`.
 
 ### Команды Docker Compose
 
 | Команда | Режим |
 |---------|-------|
-| `./start.sh` | Всё: подготовка + WireGuard + проверка + daemon |
+| `./start.sh` | Всё: подготовка + проверка + daemon |
 | `./verify.sh` | Только проверка DNS и push |
-| `./verify_wg.sh` | Проверка WireGuard: туннель, handshake, резолв и трафик через WG |
-| `./clear_cache.sh` | Полная очистка кэша доменов и служебных флагов (.input_hash, .start_done и др.) |
 | `docker compose --profile run run --rm run` | Один прогон (input.txt) |
 | `docker compose up -d daemon` | Фон (production) |
 
@@ -89,12 +87,15 @@ CACHE_TTL_HOURS=24
 | `GIT_PUSH_TOKEN` | — | Токен GitHub (PAT). Без него push не будет. |
 | `INPUT_FILE` | `input.txt` | Файл со списком доменов/IP/CIDR. |
 | `OUTPUT_FILE` | `output_optimized.txt` | Куда писать итог. |
+| `DNS_OVER_TLS` | — | `1` — использовать DNS over TLS (шифрование). Иначе обычный DNS из `DNS_POOL`. |
+| `DNS_OVER_TLS_SERVERS` | — | Список DoT-серверов: `IP:hostname,IP:hostname`. Пример NextDNS: `45.90.28.61:xxx.dns.nextdns.io,45.90.30.61:xxx.dns.nextdns.io`. |
+| `DNS_POOL` | 8.8.8.8, 1.1.1.1, … | Обычные DNS (если DoT выключен), через запятую. |
 | `SCHEDULE_INTERVAL_MINUTES` | `60` | Интервал проверки в daemon (мин). 60=час, 1440=день. |
 | `USE_DOMAIN_CACHE` | — | `1` — инкрементальный кэш (для daemon, 60–100K доменов). |
 | `RESOLVE_PER_RUN` | `5000` | Доменов за один прогон (при USE_DOMAIN_CACHE). |
 | `CACHE_TTL_HOURS` | `24` | Через сколько часов перепроверять домен. |
-| `CONCURRENCY_LIMIT` | `1` | Сколько DNS-запросов параллельно. |
-| `DELAY` | `1.0` | Пауза между запросами (сек). |
+| `CONCURRENCY_LIMIT` | `2` | Сколько DNS-запросов параллельно. |
+| `DELAY` | `0.5` | Пауза между запросами (сек). |
 | `GIT_BRANCH` | текущая ветка | В какую ветку пушить. |
 | `FORCE_RUN` | — | `1` — игнорировать хеш, всегда гонять пайплайн. |
 | `KEEP_LAST_OUTPUT_IF_EMPTY` | — | `1` — при пустом результате не затирать старый output. |
@@ -103,13 +104,19 @@ CACHE_TTL_HOURS=24
 | `FILTER_RESERVED` | `1` | `1` — исключать из вывода зарезервированные/недопустимые адреса (0.0.0.0/8, loopback, multicast, broadcast). |
 | `FILTER_PRIVATE` | `0` | `1` — дополнительно исключать приватные диапазоны (10/8, 172.16/12, 192.168/16). |
 | `COLLAPSE_IPS_TO_SUBNETS` | `1` | `1` — объединять одиночные IP в подсети (меньше строк, больше CIDR). `0` — оставлять каждый IP отдельной строкой. |
-| `WG_CONF` | `forestserver_DE-DE-578.conf` | Имя файла конфига WG в каталоге `wg/`. DNS для резолва = из этого конфига (/etc/resolv.conf в контейнере). |
 
 Полный список и тонкости — в [.env.example](.env.example). Развёртывание на сервере по шагам — [DEPLOY.md](DEPLOY.md).
 
-### WireGuard
+### DNS over TLS (DoT)
 
-В Docker всё работает в одном контейнере под WireGuard: поднимается WG, DNS из конфига пишется в `/etc/resolv.conf`, пайплайн резолвит через системный DNS (= твой DNS). В `.env` нужен только `WG_CONF` (файл в `wg/`). Проверка туннеля и DNS: `./verify_wg.sh`. Подробнее — [DEPLOY.md](DEPLOY.md).
+Чтобы резолвить домены через зашифрованный DoT (например NextDNS), в `.env` добавь:
+
+```bash
+DNS_OVER_TLS=1
+DNS_OVER_TLS_SERVERS=45.90.28.61:твой-профиль.dns.nextdns.io,45.90.30.61:твой-профиль.dns.nextdns.io
+```
+
+Формат: через запятую пары `IP:hostname` (hostname — для проверки TLS). Без DoT используется обычный DNS из `DNS_POOL`.
 
 ---
 
@@ -152,11 +159,7 @@ pytest tests/ -v
 - `script.py` — отдельный консолидатор по директории (использует ip_utils).
 - `run.sh` — проверка хеша, запуск пайплайна, обновление `.input_hash`, вызов sync.
 - `scheduler.sh` — цикл для daemon: запуск `run.sh` каждые N минут.
-- `start.sh` — единая точка входа: подготовка + WireGuard + проверка + daemon.
+- `start.sh` — единая точка входа: подготовка + проверка + daemon.
 - `deploy.sh` — алиас для `start.sh`.
 - `verify.sh` — проверка DNS и push через Docker Compose.
-- `verify_wg.sh` — проверка WireGuard (туннель, handshake, резолв через WG).
-- `clear_cache.sh` — полная очистка кэша (domain_cache.json, .input_hash, .verify_hash, .start_done).
-- `Dockerfile.wg` — образ с WireGuard для резолва через туннель.
 - `sync.sh` — git add/commit/push при изменении output/hash; откат origin после пуша.
-- `domip.py` — устаревший скрипт резолва (для резолва доменов используй pipeline.py).

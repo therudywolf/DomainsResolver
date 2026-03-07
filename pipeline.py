@@ -2,7 +2,7 @@
 """
 Unified pipeline: read input.txt (domains + IP/CIDR), resolve domains async,
 merge with IP/CIDR, optimize list, write output_optimized.txt.
-Runs in one container under WireGuard; DNS = system (/etc/resolv.conf = your WG DNS).
+Supports domain cache for incremental updates (60-100K domains).
 """
 from __future__ import annotations
 
@@ -10,8 +10,8 @@ import asyncio
 import argparse
 import json
 import os
-import socket
 import sys
+import random
 import time
 from typing import Dict, List, Set, Tuple
 
@@ -21,13 +21,15 @@ from ipaddress import ip_address as ip_parse
 if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
+try:
+    import dns.asyncresolver
+    from dns.exception import Timeout
+    from dns.nameserver import DoTNameserver
+except ImportError:
+    print("[ERROR] dnspython required: pip install dnspython", file=sys.stderr)
+    sys.exit(1)
+
 from ip_utils import parse_entry, optimize_list
-
-
-class ResolverTimeout(Exception):
-    """Raised when system DNS resolution times out (for retry logic)."""
-    pass
-
 
 INPUT_FILE = os.environ.get("INPUT_FILE", "input.txt")
 OUTPUT_FILE = os.environ.get("OUTPUT_FILE", "output_optimized.txt")
@@ -44,6 +46,45 @@ RESOLVE_PER_RUN = int(os.environ.get("RESOLVE_PER_RUN", "5000"))
 CACHE_TTL_HOURS = float(os.environ.get("CACHE_TTL_HOURS", "24"))
 CACHE_SAVE_EVERY = 200  # save cache every N resolved domains
 
+_dns_pool_env = os.environ.get("DNS_POOL", "").strip()
+if _dns_pool_env:
+    DNS_POOL = [s.strip() for s in _dns_pool_env.split(",") if s.strip()]
+else:
+    DNS_POOL = [
+        "8.8.8.8", "8.8.4.4",
+        "1.1.1.1", "1.0.0.1",
+        "9.9.9.9", "149.112.112.112",
+        "208.67.222.222", "208.67.220.220",
+        "77.88.8.8", "77.88.8.1",
+        "94.140.14.14", "94.140.15.15",
+    ]
+if not DNS_POOL:
+    DNS_POOL = ["8.8.8.8", "1.1.1.1"]
+
+# DNS over TLS: if DNS_OVER_TLS=1 and DNS_OVER_TLS_SERVERS set, use DoT nameservers
+DNS_OVER_TLS = os.environ.get("DNS_OVER_TLS", "").strip().lower() in ("1", "true", "yes")
+_dot_servers_env = os.environ.get("DNS_OVER_TLS_SERVERS", "").strip()
+DNS_OVER_TLS_NAMESERVERS: List[DoTNameserver] = []
+
+
+def parse_dot_servers(servers_str: str) -> List[DoTNameserver]:
+    """Parse DNS_OVER_TLS_SERVERS (format: IP:hostname,IP:hostname) into list of DoTNameserver."""
+    result: List[DoTNameserver] = []
+    for part in (servers_str or "").strip().split(","):
+        part = part.strip()
+        if ":" in part:
+            addr, hostname = part.split(":", 1)
+            addr, hostname = addr.strip(), hostname.strip()
+            if addr and hostname:
+                result.append(DoTNameserver(addr, 853, hostname))
+    return result
+
+
+if DNS_OVER_TLS and _dot_servers_env:
+    DNS_OVER_TLS_NAMESERVERS = parse_dot_servers(_dot_servers_env)
+    if not DNS_OVER_TLS_NAMESERVERS:
+        DNS_OVER_TLS = False
+
 _LOG_LEVELS = {"DEBUG": 10, "INFO": 20, "WARNING": 30, "ERROR": 40}
 LOG_LEVEL = _LOG_LEVELS.get(os.environ.get("LOG_LEVEL", "INFO").upper(), 20)
 
@@ -53,25 +94,6 @@ def _log(level: str, msg: str, **kwargs: str) -> None:
     if lvl >= LOG_LEVEL:
         extra = " ".join(f"{k}={v}" for k, v in kwargs.items()) if kwargs else ""
         print(f"[{level}] {msg}" + (" " + extra if extra else ""))
-
-
-def _system_resolve(domain: str, rdtype: str, timeout: float):
-    """Resolve via system DNS (/etc/resolv.conf). In container = your WG DNS."""
-    family = socket.AF_INET if rdtype == "A" else socket.AF_INET6
-    old_timeout = socket.getdefaulttimeout()
-    try:
-        socket.setdefaulttimeout(timeout)
-        results = socket.getaddrinfo(domain, None, family)
-        addrs = [r[4][0] for r in results]
-        class R:
-            def __init__(self, a): self.address = a
-        return [R(a) for a in addrs]
-    except socket.timeout:
-        raise ResolverTimeout()
-    except socket.gaierror:
-        raise ValueError("resolution failed")
-    finally:
-        socket.setdefaulttimeout(old_timeout)
 
 
 def load_domain_cache(path: str) -> Dict[str, dict]:
@@ -135,7 +157,7 @@ async def resolve_domain(
     resolve_aaaa: bool,
     cache: Dict[str, dict] | None = None,
 ) -> None:
-    """Resolve one domain (A, optionally AAAA) via system DNS; add IPs to ip_set."""
+    """Resolve one domain (A record, optionally AAAA), support wildcard *. -> www., add IPs to ip_set."""
     raw_domain = domain.strip()
     if not raw_domain:
         return
@@ -149,19 +171,22 @@ async def resolve_domain(
     async with sem:
         for attempt in range(max_retries):
             try:
-                loop = asyncio.get_event_loop()
-                answers = await loop.run_in_executor(
-                    None, lambda d=clean_domain, to=resolver_timeout: _system_resolve(d, "A", to)
-                )
+                resolver = dns.asyncresolver.Resolver()
+                if DNS_OVER_TLS_NAMESERVERS:
+                    resolver.nameservers = random.sample(
+                        DNS_OVER_TLS_NAMESERVERS, min(3, len(DNS_OVER_TLS_NAMESERVERS))
+                    )
+                else:
+                    resolver.nameservers = random.sample(DNS_POOL, min(3, len(DNS_POOL)))
+                resolver.lifetime = resolver_timeout
+                answers = await resolver.resolve(clean_domain, "A")
                 addrs = [rdata.address for rdata in answers]
                 for ip in addrs:
                     ip_set.add(ip)
                 all_ips = list(addrs)
                 if resolve_aaaa:
                     try:
-                        aaaa = await loop.run_in_executor(
-                            None, lambda d=clean_domain, to=resolver_timeout: _system_resolve(d, "AAAA", to)
-                        )
+                        aaaa = await resolver.resolve(clean_domain, "AAAA")
                         for rdata in aaaa:
                             ip_set.add(rdata.address)
                             all_ips.append(rdata.address)
@@ -180,7 +205,7 @@ async def resolve_domain(
                 if backoff_state.get("backoff_remaining", 0) > 0:
                     backoff_state["backoff_remaining"] -= 1
                 return
-            except ResolverTimeout:
+            except Timeout:
                 backoff_state["consecutive_fail"] = backoff_state.get("consecutive_fail", 0) + 1
                 if backoff_state["consecutive_fail"] >= 5:
                     backoff_state["backoff_remaining"] = backoff_state.get("backoff_remaining", 0) + 10
@@ -194,7 +219,7 @@ async def resolve_domain(
                 backoff_state["consecutive_fail"] = backoff_state.get("consecutive_fail", 0) + 1
                 if backoff_state["consecutive_fail"] >= 5:
                     backoff_state["backoff_remaining"] = backoff_state.get("backoff_remaining", 0) + 10
-                print(f"[-] {raw_domain} -> FAIL ({type(e).__name__}: {e})")
+                print(f"[-] {raw_domain} -> FAIL ({type(e).__name__})")
                 resolve_stats["fail"] = resolve_stats.get("fail", 0) + 1
                 break
 
@@ -239,8 +264,6 @@ def main_sync() -> None:
         _log("INFO", "DRY-RUN: Skipping resolve and write.")
         return
 
-    _log("INFO", "DNS: system (/etc/resolv.conf) — all resolution via tunnel")
-
     resolved_ips: Set[str] = set()
     resolve_stats: dict = {"ok": 0, "fail": 0}
     cache: Dict[str, dict] = {}
@@ -249,6 +272,7 @@ def main_sync() -> None:
 
     if USE_DOMAIN_CACHE and domains:
         cache = load_domain_cache(DOMAIN_CACHE_FILE)
+        # Domains needing resolution: not in cache or expired
         resolve_queue: List[str] = []
         for d in domains:
             ent = cache.get(d)
@@ -264,12 +288,13 @@ def main_sync() -> None:
                 resolve_stats["ok"] = resolve_stats.get("ok", 0) + chunk_stats.get("ok", 0)
                 resolve_stats["fail"] = resolve_stats.get("fail", 0) + chunk_stats.get("fail", 0)
                 save_domain_cache(DOMAIN_CACHE_FILE, cache)
+        # Build full IP set from cache for all domains in input
         for d in domains:
             ent = cache.get(d)
             if ent:
                 for ip in ent.get("ips", []):
                     resolved_ips.add(ip)
-        _log("INFO", f"Resolved {len(resolved_ips)} unique IPs (cached + {len(to_resolve)} attempted this run: ok={resolve_stats.get('ok', 0)} fail={resolve_stats.get('fail', 0)})")
+        _log("INFO", f"Resolved {len(resolved_ips)} unique IPs (from cache + {len(to_resolve)} fresh)")
     elif domains:
         _log("INFO", f"Starting DNS resolution ({len(domains)} domains)...")
         resolved_ips, resolve_stats = asyncio.run(resolve_all(domains))

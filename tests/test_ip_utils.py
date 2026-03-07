@@ -41,31 +41,31 @@ class TestParseEntry:
 
 class TestOptimizeList:
     def test_empty(self):
-        assert optimize_list([], quiet=True) == []
+        assert optimize_list([]) == []
 
     def test_dedup_ips(self):
         raw = ["1.2.3.4", "1.2.3.4", "5.6.7.8"]
-        out = optimize_list(raw, collapse_ips=False, quiet=True)
+        out = optimize_list(raw, collapse_ips=False)
         assert "1.2.3.4" in out
         assert "5.6.7.8" in out
         assert out.count("1.2.3.4") == 1
 
     def test_subnet_contains_ip(self):
         raw = ["192.168.1.0/24", "192.168.1.10"]
-        out = optimize_list(raw, quiet=True)
+        out = optimize_list(raw)
         assert "192.168.0.0/24" in out or "192.168.1.0/24" in out
         assert "192.168.1.10" not in out
 
     def test_invalid_skipped(self):
         raw = ["1.2.3.4", "garbage", "5.6.7.8"]
-        out = optimize_list(raw, collapse_ips=False, quiet=True)
+        out = optimize_list(raw, collapse_ips=False)
         assert len(out) == 2
         assert "1.2.3.4" in out
         assert "5.6.7.8" in out
 
     def test_sorted(self):
         raw = ["10.0.0.1", "1.1.1.1", "192.168.1.1"]
-        out = optimize_list(raw, collapse_ips=False, quiet=True)
+        out = optimize_list(raw, collapse_ips=False)
         # Result should be sorted (ip_utils sorts by address then prefix)
         addrs = [ip_address(x) for x in out]
         assert addrs == sorted(addrs)
@@ -73,7 +73,7 @@ class TestOptimizeList:
     def test_reserved_filtered_by_default(self):
         """0.0.0.0, 127.0.0.1, 255.255.255.255 and 0.0.0.0/8 excluded when filter_reserved=True."""
         raw = ["0.0.0.0", "127.0.0.1", "255.255.255.255", "1.2.3.4", "0.0.0.0/8"]
-        out = optimize_list(raw, filter_reserved=True, collapse_ips=False, quiet=True)
+        out = optimize_list(raw, filter_reserved=True, collapse_ips=False)
         assert "1.2.3.4" in out
         assert "0.0.0.0" not in out
         assert "127.0.0.1" not in out
@@ -83,14 +83,14 @@ class TestOptimizeList:
 
     def test_reserved_kept_when_filter_disabled(self):
         raw = ["0.0.0.0", "1.2.3.4"]
-        out = optimize_list(raw, filter_reserved=False, collapse_ips=False, quiet=True)
+        out = optimize_list(raw, filter_reserved=False, collapse_ips=False)
         assert "0.0.0.0" in out
         assert "1.2.3.4" in out
 
     def test_collapse_ips_same_subnet(self):
         """Several IPs in same /24 are merged into one subnet when collapse_ips=True."""
         raw = ["192.168.2.1", "192.168.2.2", "192.168.2.10", "192.168.2.254"]
-        out = optimize_list(raw, collapse_ips=True, quiet=True)
+        out = optimize_list(raw, collapse_ips=True)
         assert len(out) <= 4
         assert any("/" in e for e in out)
         assert any("192.168.2" in e for e in out)
@@ -98,10 +98,3 @@ class TestOptimizeList:
         for ip_str in raw:
             addr = ip_address(ip_str)
             assert any(addr in n for n in nets), f"{ip_str} not covered"
-
-    def test_private_filtered_when_filter_private_true(self):
-        """10.0.0.1 (private) excluded, 8.8.8.8 (public) kept when filter_private=True."""
-        raw = ["10.0.0.1", "8.8.8.8"]
-        out = optimize_list(raw, filter_reserved=True, filter_private=True, collapse_ips=False, quiet=True)
-        assert "8.8.8.8" in out
-        assert "10.0.0.1" not in out

@@ -218,7 +218,7 @@ domain_cache.json
 domain_cache.json.tmp
 .deploy_done
 .start_done
-.pytest_cache/
-
-# WireGuard / local config
+.input_hash
+.verify_hash
 wg/
+.pytest_cache/

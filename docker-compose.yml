@@ -4,40 +4,12 @@
 # Проверка:  docker compose run --rm verify
 # Один прогон: docker compose run --rm run
 # Фон:       docker compose up -d daemon
-# WG проверка: ./verify_wg.sh
 
 services:
-  wireguard:
-    build:
-      context: .
-      dockerfile: Dockerfile.wg
-    image: dmtcdrk-wg:latest
-    env_file: .env
-    environment:
-      - WG_CONF=${WG_CONF:-forestserver_DE-DE-578.conf}
-    volumes:
-      - ./wg:/etc/wireguard:ro
-    cap_add:
-      - NET_ADMIN
-    sysctls:
-      - net.ipv4.conf.all.src_valid_mark=1
-    command: ["sh", "-c", "CONF=\"$${WG_CONF:-forestserver_DE-DE-578.conf}\"; sed 's/\\r$$//' \"/etc/wireguard/$$CONF\" > /tmp/wg.conf; grep -E '^DNS[[:space:]]*=' /tmp/wg.conf | sed 's/^DNS[[:space:]]*=[[:space:]]*//' | tr -s ' \\t' '\\n' | while read s; do [ -n \"$$s\" ] && echo \"nameserver $$s\"; done > /tmp/resolv.wg; sed '/^DNS[[:space:]]*=/d' /tmp/wg.conf > /tmp/wg-nodns.conf; wg-quick up /tmp/wg-nodns.conf; [ -s /tmp/resolv.wg ] && cp /tmp/resolv.wg /etc/resolv.conf; exec sleep infinity"]
-
-  verify_wg:
-    image: alpine:latest
-    network_mode: service:wireguard
-    depends_on:
-      - wireguard
-    profiles: [verify_wg]
-    command: ["sh", "-c", "echo '[1/3] DNS через WG...' && getent hosts example.com || exit 1 && echo '[2/3] Внешний IP через WG...' && wget -qO- --timeout=10 https://ifconfig.me 2>/dev/null || exit 1 && echo '' && echo '[3/3] OK'"]
-
   verify:
     build: .
     image: dmtcdrk:latest
     profiles: [verify]
-    network_mode: service:wireguard
-    depends_on:
-      - wireguard
     volumes:
       - .:/data
     working_dir: /data
@@ -57,9 +29,6 @@ services:
     build: .
     image: dmtcdrk:latest
     profiles: [run]
-    network_mode: service:wireguard
-    depends_on:
-      - wireguard
     volumes:
       - .:/data
     working_dir: /data
@@ -77,9 +46,6 @@ services:
   daemon:
     build: .
     image: dmtcdrk:latest
-    network_mode: service:wireguard
-    depends_on:
-      - wireguard
     volumes:
       - .:/data
     working_dir: /data

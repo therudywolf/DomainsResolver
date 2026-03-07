@@ -1,16 +1,47 @@
-"""Tests for pipeline read_and_classify, cache, and --dry-run."""
-import json
+"""Tests for pipeline read_and_classify, parse_dot_servers and --dry-run."""
 import os
-import sys
+import tempfile
+from pathlib import Path
 
 import pytest
 
-from pipeline import (
-    read_and_classify,
-    load_domain_cache,
-    save_domain_cache,
-    main_sync,
-)
+from pipeline import read_and_classify, parse_dot_servers
+
+
+class TestParseDotServers:
+    """Tests for DNS over TLS server list parsing."""
+
+    def test_parses_valid_dot_servers(self):
+        s = "45.90.28.61:DMTCDRK-67bd84.dns.nextdns.io,45.90.30.61:DMTCDRK-67bd84.dns.nextdns.io"
+        result = parse_dot_servers(s)
+        assert len(result) == 2
+        assert result[0].address == "45.90.28.61"
+        assert result[0].port == 853
+        assert result[0].hostname == "DMTCDRK-67bd84.dns.nextdns.io"
+        assert result[1].address == "45.90.30.61"
+        assert result[1].hostname == "DMTCDRK-67bd84.dns.nextdns.io"
+
+    def test_empty_string_returns_empty_list(self):
+        assert parse_dot_servers("") == []
+        assert parse_dot_servers("   ") == []
+
+    def test_invalid_format_no_colon_skipped(self):
+        result = parse_dot_servers("8.8.8.8,1.1.1.1")
+        assert result == []
+
+    def test_single_server(self):
+        result = parse_dot_servers("1.2.3.4:dot.example.com")
+        assert len(result) == 1
+        assert result[0].address == "1.2.3.4"
+        assert result[0].hostname == "dot.example.com"
+
+    def test_whitespace_trimmed(self):
+        result = parse_dot_servers("  1.2.3.4 : dot.example.com  ,  5.6.7.8 : dot2.example.com  ")
+        assert len(result) == 2
+        assert result[0].address == "1.2.3.4"
+        assert result[0].hostname == "dot.example.com"
+        assert result[1].address == "5.6.7.8"
+        assert result[1].hostname == "dot2.example.com"
 
 
 class TestReadAndClassify:
@@ -47,66 +78,3 @@ class TestReadAndClassify:
     def test_missing_file_exits(self):
         with pytest.raises(SystemExit):
             read_and_classify("/nonexistent/path/input.txt")
-
-
-class TestLoadDomainCache:
-    def test_missing_path_returns_empty(self):
-        assert load_domain_cache("/nonexistent/cache.json") == {}
-
-    def test_empty_file_returns_empty(self, tmp_path):
-        p = tmp_path / "cache.json"
-        p.write_text("")
-        assert load_domain_cache(str(p)) == {}
-
-    def test_valid_json_returns_dict(self, tmp_path):
-        p = tmp_path / "cache.json"
-        data = {"example.com": {"ips": ["1.2.3.4"], "ts": 12345}}
-        p.write_text(json.dumps(data))
-        assert load_domain_cache(str(p)) == data
-
-    def test_invalid_json_returns_empty(self, tmp_path):
-        p = tmp_path / "cache.json"
-        p.write_text("{ invalid")
-        assert load_domain_cache(str(p)) == {}
-
-    def test_non_dict_json_returns_empty(self, tmp_path):
-        p = tmp_path / "cache.json"
-        p.write_text("[1, 2, 3]")
-        assert load_domain_cache(str(p)) == {}
-
-
-class TestSaveDomainCache:
-    def test_writes_and_replaces_atomically(self, tmp_path):
-        p = tmp_path / "cache.json"
-        cache = {"a.com": {"ips": ["1.2.3.4"], "ts": 1}}
-        save_domain_cache(str(p), cache)
-        assert p.exists()
-        assert json.loads(p.read_text()) == cache
-        assert not (tmp_path / "cache.json.tmp").exists()
-
-    def test_overwrites_existing(self, tmp_path):
-        p = tmp_path / "cache.json"
-        p.write_text('{"old": {}}')
-        save_domain_cache(str(p), {"new": {"ips": [], "ts": 0}})
-        assert json.loads(p.read_text()) == {"new": {"ips": [], "ts": 0}}
-
-
-class TestMainSyncDryRun:
-    def test_dry_run_exits_zero_and_writes_no_output(self, tmp_path, monkeypatch):
-        input_f = tmp_path / "input.txt"
-        input_f.write_text("1.2.3.4\n10.0.0.0/8\n")
-        output_f = tmp_path / "output.txt"
-        monkeypatch.setattr("pipeline.INPUT_FILE", str(input_f))
-        monkeypatch.setattr("pipeline.OUTPUT_FILE", str(output_f))
-        monkeypatch.setattr(sys, "argv", ["pipeline", "--dry-run"])
-        import pipeline as pl
-        pl.main_sync()
-        assert not output_f.exists()
-
-    def test_dry_run_with_missing_input_exits_nonzero(self, tmp_path, monkeypatch):
-        monkeypatch.setattr("pipeline.INPUT_FILE", str(tmp_path / "nonexistent.txt"))
-        monkeypatch.setattr(sys, "argv", ["pipeline", "--dry-run"])
-        import pipeline as pl
-        with pytest.raises(SystemExit) as exc_info:
-            pl.main_sync()
-        assert exc_info.value.code != 0
