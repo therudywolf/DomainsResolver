@@ -4,12 +4,16 @@
 # Проверка:  docker compose run --rm verify
 # Один прогон: docker compose run --rm run
 # Фон:       docker compose up -d daemon
+#
+# Контейнеры запускаются от владельца каталога (DOCKER_UID/GID), чтобы не было
+# Permission denied при записи .input_hash, domain_cache.json и т.д.
 
 services:
   verify:
     build: .
     image: dmtcdrk:latest
     profiles: [verify]
+    user: "${DOCKER_UID:-1000}:${DOCKER_GID:-1000}"
     volumes:
       - .:/data
     working_dir: /data
@@ -29,6 +33,7 @@ services:
     build: .
     image: dmtcdrk:latest
     profiles: [run]
+    user: "${DOCKER_UID:-1000}:${DOCKER_GID:-1000}"
     volumes:
       - .:/data
     working_dir: /data
@@ -46,6 +51,7 @@ services:
   daemon:
     build: .
     image: dmtcdrk:latest
+    user: "${DOCKER_UID:-1000}:${DOCKER_GID:-1000}"
     volumes:
       - .:/data
     working_dir: /data

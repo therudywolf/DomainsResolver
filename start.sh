@@ -5,6 +5,20 @@
 set -e
 cd "$(dirname "$0")"
 
+# Чтобы контейнер мог писать .input_hash и др., запускаем его от владельца каталога
+if [ -z "$DOCKER_UID" ] || [ -z "$DOCKER_GID" ]; then
+  if command -v stat >/dev/null 2>&1; then
+    if stat -c '%u' . >/dev/null 2>&1; then
+      export DOCKER_UID=$(stat -c '%u' .) DOCKER_GID=$(stat -c '%g' .)
+    elif stat -f '%u' . >/dev/null 2>&1; then
+      export DOCKER_UID=$(stat -f '%u' .) DOCKER_GID=$(stat -f '%g' .)
+    fi
+  fi
+  DOCKER_UID="${DOCKER_UID:-1000}"
+  DOCKER_GID="${DOCKER_GID:-1000}"
+  export DOCKER_UID DOCKER_GID
+fi
+
 echo ""
 echo "  DMTCDRK"
 echo "  ======="
@@ -76,6 +90,12 @@ if [ ! -f "$HASH_FILE" ] && [ -f "$INPUT_FILE" ]; then
   else
     echo "init" > "$HASH_FILE"
   fi
+fi
+# Если скрипт запущен под root, отдать файлы владельцу каталога — иначе контейнер не сможет писать
+if [ "$(id -u)" = "0" ] && [ -n "$DOCKER_UID" ] && [ -n "$DOCKER_GID" ] && command -v chown >/dev/null 2>&1; then
+  for f in "$HASH_FILE" "$OUTPUT_FILE"; do
+    [ -f "$f" ] && chown "${DOCKER_UID}:${DOCKER_GID}" "$f" 2>/dev/null || true
+  done
 fi
 OUTPUT_FILE="$OUTPUT_FILE" HASH_FILE="$HASH_FILE" bash sync.sh
 
