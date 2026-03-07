@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# If output_optimized.txt or .input_hash changed, git add, commit, push.
+# If output_optimized.txt changed, git add, commit, push.
+# .input_hash не коммитим (он в .gitignore) — только выходной файл.
 # Uses GIT_PUSH_TOKEN for HTTPS push when set. Restores origin URL after push.
 # Retries git push up to 3 times on failure.
 
 set -e
 OUTPUT_FILE="${OUTPUT_FILE:-output_optimized.txt}"
-HASH_FILE="${HASH_FILE:-.input_hash}"
 GIT_PUSH_RETRIES="${GIT_PUSH_RETRIES:-3}"
 GIT_PUSH_SLEEP="${GIT_PUSH_SLEEP:-5}"
 
@@ -13,13 +13,19 @@ GIT_PUSH_SLEEP="${GIT_PUSH_SLEEP:-5}"
 git config user.name "${GIT_USER_NAME:-DMTCDRK}" 2>/dev/null || true
 git config user.email "${GIT_USER_EMAIL:-dmtcdrk@localhost}" 2>/dev/null || true
 
-if ! git status --porcelain "$OUTPUT_FILE" "$HASH_FILE" 2>/dev/null | grep -q .; then
-  echo "[SYNC] Нет изменений в $OUTPUT_FILE или $HASH_FILE — push не нужен"
+# Проверяем только выходной файл — хеш в репозиторий не пушим
+if ! git status --porcelain "$OUTPUT_FILE" 2>/dev/null | grep -q .; then
+  echo "[SYNC] Нет изменений в $OUTPUT_FILE — push не нужен"
   exit 0
 fi
 
 echo "[SYNC] Изменения обнаружены, коммит и push..."
-git add "$OUTPUT_FILE" "$HASH_FILE"
+git add "$OUTPUT_FILE"
+# Если после add ничего не изменилось относительно HEAD (файл перезаписан тем же) — не коммитим
+if git diff --cached --quiet 2>/dev/null; then
+  echo "[SYNC] Нет изменений в $OUTPUT_FILE относительно HEAD — push не нужен"
+  exit 0
+fi
 if [ -n "${GIT_SIGN_COMMITS}" ] && [ "${GIT_SIGN_COMMITS}" != "0" ] && [ "${GIT_SIGN_COMMITS}" != "false" ] && [ "${GIT_SIGN_COMMITS}" != "no" ]; then
   git commit -S -m "Auto-update IPs"
 else

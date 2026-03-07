@@ -46,8 +46,8 @@ echo "$current_hash" > "$HASH_FILE"
 if [ -f "sync.sh" ]; then
   bash sync.sh
 else
-  if git status --porcelain "$OUTPUT_FILE" "$HASH_FILE" 2>/dev/null | grep -q .; then
-    git add "$OUTPUT_FILE" "$HASH_FILE"
+  if git status --porcelain "$OUTPUT_FILE" 2>/dev/null | grep -q .; then
+    git add "$OUTPUT_FILE"
     git commit -m "Auto-update IPs"
     [ -n "${GIT_PUSH_TOKEN}" ] && orig="$(git remote get-url origin 2>/dev/null)" && [[ "$orig" == https://* ]] && git remote set-url origin "https://oauth2:${GIT_PUSH_TOKEN}@${orig#https://}"
     git push
