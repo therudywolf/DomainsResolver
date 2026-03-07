@@ -89,9 +89,6 @@ CACHE_TTL_HOURS=24
 | `GIT_PUSH_TOKEN` | — | Токен GitHub (PAT). Без него push не будет. |
 | `INPUT_FILE` | `input.txt` | Файл со списком доменов/IP/CIDR. |
 | `OUTPUT_FILE` | `output_optimized.txt` | Куда писать итог. |
-| `DNS_OVER_TLS` | — | `1` — использовать DNS over TLS (шифрование). Иначе обычный DNS из `DNS_POOL`. |
-| `DNS_OVER_TLS_SERVERS` | — | Список DoT-серверов: `IP:hostname,IP:hostname`. Пример NextDNS: `45.90.28.61:xxx.dns.nextdns.io,45.90.30.61:xxx.dns.nextdns.io`. |
-| `DNS_POOL` | 8.8.8.8, 1.1.1.1, … | Обычные DNS (если DoT выключен), через запятую. |
 | `SCHEDULE_INTERVAL_MINUTES` | `60` | Интервал проверки в daemon (мин). 60=час, 1440=день. |
 | `USE_DOMAIN_CACHE` | — | `1` — инкрементальный кэш (для daemon, 60–100K доменов). |
 | `RESOLVE_PER_RUN` | `5000` | Доменов за один прогон (при USE_DOMAIN_CACHE). |

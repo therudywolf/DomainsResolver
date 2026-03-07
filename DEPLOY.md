@@ -50,10 +50,9 @@ chmod +x start.sh verify.sh verify_wg.sh deploy.sh
 ## .env
 
 Обязательно: `GIT_PUSH_TOKEN`, `GIT_USER_NAME`, `GIT_USER_EMAIL`  
-При NextDNS (без WG): `DNS_OVER_TLS=1` и `DNS_OVER_TLS_SERVERS=...`  
-При использовании WG резолв идёт только через WG DNS (`USE_WG_DNS=1`, `WG_DNS_IP=10.2.0.1` — заданы в compose для verify/run/daemon).
+Резолв доменов идёт через DNS из конфига WG (/etc/resolv.conf в контейнере). Доп. переменные для DNS не нужны.
 
-**DNS:** `DELAY=1.0` и `CONCURRENCY_LIMIT=1` — по умолчанию. Быстрее = риск бана.
+**Скорость:** `DELAY=1.0` и `CONCURRENCY_LIMIT=1` — по умолчанию. Быстрее = риск бана.
 
 Если `.env` копировался с Windows: `sed -i 's/\r$//' .env`
 
