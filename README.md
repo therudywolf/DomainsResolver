@@ -1,8 +1,23 @@
-# DMTCDRK
+# 🐺 DomainsResolver
+
+> `D34D1N$1D3` :: numb but alive :: domain to IP pipeline
+
+My resources:
+- [Gravatar](https://gravatar.com/therudywolf)
+- [OneToThree](https://onetothree.ru)
+- [Forest blog](https://t.me/theforestserver)
+- [X](https://x.com/therudywolf)
+- [GitHub](https://github.com/therudywolf)
+- [Twitch](https://twitch.tv/therudywolf)
+- [Reddit](https://reddit.com/user/Most-Watercress-6718)
+- [Telegram](https://t.me/rudy_wolf)
+- [YouTube](https://youtube.com/channel/UCXHkoSlaY5QaNmN_l4t0djQ)
 
 **Domain → IP/CIDR pipeline.** Один файл со списком доменов (и IP/CIDR вперемешку) → резолв → оптимизация → один файл с айпи и подсетями. Опционально пушит результат в Git по изменению.
 
 Автор: **rudywolf**
+
+AGPL v3 Copyleft applies to reuse, modification, and network deployment of derived versions.
 
 ---
 
