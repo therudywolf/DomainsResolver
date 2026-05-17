@@ -1,10 +1,39 @@
-# 🐺 DomainsResolver
+# 🐺 RudyWolf Archive: DomainsResolver
+
+> Domain → IP/CIDR pipeline с опциональным git push результата.
+
+![Version](https://img.shields.io/badge/version-archive-4c8bf5)
+![Status](https://img.shields.io/badge/status-archive-6b7280)
+[![License](https://img.shields.io/badge/license-AGPL--3.0--or--later-22c55e)](LICENSE)
 
 **Domain → IP/CIDR pipeline.** Один файл со списком доменов (и IP/CIDR вперемешку) → резолв → оптимизация → один файл с айпи и подсетями. Опционально пушит результат в Git по изменению.
 
 Автор: **rudywolf**
 
-AGPL v3 Copyleft applies to reuse, modification, and network deployment of derived versions.
+## Status
+
+- Tooling/archive repository (Docker-first deployment documented below).
+- Not intended for unattended production without your own review.
+- License: [AGPL-3.0-or-later](LICENSE) — see [SECURITY.md](SECURITY.md).
+
+## Secrets
+
+- Copy [`.env.example`](.env.example) → `.env` locally; set `GIT_PUSH_TOKEN` only on the machine that should push.
+- Do not commit `.env`, private domain lists with sensitive infrastructure details, or resolver output you need to keep confidential.
+
+## Run (local, без Docker)
+
+```bash
+cp .env.example .env    # отредактируй при необходимости
+python pipeline.py --dry-run
+./run.sh              # полный цикл (Linux/macOS)
+```
+
+Docker и серверный деплой — ниже.
+
+## Publication Note
+
+Before any push or reuse, check that no tokens, private host lists, or credential files are tracked or left in git history.
 
 ---
 
